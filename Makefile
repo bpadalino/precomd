@@ -1,5 +1,5 @@
 all:
-    gcc -o precomd precomd.c -lusb -Wall
+    gcc -o precomd ./src/precomd.c -lusb -Wall
     
 clean:
     rm precomd
