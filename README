@@ -1,1 +1,13 @@
 TODO: Fill this in.
+
+Windows Cygwin Installation
+
+1. Install libusb-win32.
+2. Run /usr/sbin/libusb-install while your pre is not plugged in.
+3. Connect the pre back in to USB and run testlibusb-win to be sure the pre shows up.
+4. Now you can compile and run precomd like normal.
+
+Linux
+
+1. Be sure libusb-devel is installed.
+2. Compile and run precomd as root.
