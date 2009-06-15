@@ -1,0 +1,8 @@
+novacomd captures taken from a Windows machine.
+
+Taken with USBTrace from sysnucleus:
+
+    http://www.sysnucleus.com/
+
+Opening the .utl files with their utility will show ASCII as well,
+which can be very helpful.
