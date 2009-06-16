@@ -7,6 +7,7 @@
 */
 
 #define uint32 unsigned int
+#define uint16 short
 
 #define USB_VENDOR_PALM             0x0830
 #define USB_TIMEOUT                 5000
@@ -83,13 +84,42 @@ typedef struct {
     char serial[40] ;
 } novacom_nop_t ;
 
+// Structure to open the tty
+typedef struct {
+    uint32 three ;
+    uint32 ten ;
+    uint32 dee ;
+} pmux_channel_open_t ;
+
+typedef struct {
+    char opentty[0] ;
+} pmux_tty_open_request_t ;
+
+typedef struct {
+    char reply[0] ;
+} pmux_tty_open_reply_t ;
+
+// Structure for the tty
 typedef struct {
     uint32 magic ;
-    uint32 version ;
+    uint32 one ;
     uint32 length ;
     uint32 zero ;
     char payload[0] ;
-} pmux_term_t ;
+} pmux_tty_payload_t ;
+
+typedef struct {
+    uint32 magic ;
+    char mode ;
+    char direction ;
+    uint16 ack ;
+    uint16 status ;
+    uint32 sequence_num ;
+    uint32 length_payload ;
+    uint32 length_pmux_packet ;
+    uint32 zero ;
+    char payload[0] ;
+} pmux_packet_t ;
 
 struct usb_dev_handle* novacom_find_endpoints( uint32 *ep_in, uint32 *ep_out ) {
     int c, i, a, ep ;
