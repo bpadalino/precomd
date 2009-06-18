@@ -58,13 +58,34 @@ The actual payload associated with the ANNOUNCEMENT packet is as follows:
     y                   ???
     z                   ???
 
-It is unknown to me, at this time, as to what the last y and z values
-are or what they mean.
+Ah ha!  0x4000 is 16384 which corresponds to the MTU size for a castle-linux
+connection.  4096 (or 0x1000) is the MTU size for when there is a castle-bootie
+connection.  The y and z fields are actually heartbeat values and timeout
+values in milliseconds.  For castle-linux, these correspond to 1 second
+heartbeats with a 10 second timeout, while for castle-bootie they correspond
+to 250ms heartbeats with a 1 second timeout.
+
+To recap:
+
+    -----------------------------------------------------
+                                  Connection
+    Field               castle-linux        castle-bootie
+    -----------------------------------------------------
+    MTU                 16384 (0x4000)      4096 (0x1000)
+    Heartbeat           1000                250
+    Timeout             10000               1000
 
 When replying to a usbl packet, the device will now be in the id_rx field,
 and the host ID will be in the id_tx field for the packet.  Since this is
 a strict point-to-point connection at the lowest level, I think these
 shouldn't change over the lifetime of the connection.
+
+More investigation is required in the castle-bootie protocol and how this
+mode essentially works.
+
+NOTE: The MTU, heartbeat and timeout were all derived from messages spewing
+from port 6970 of localhost while connecting the phone to a macbook pro
+running novacomd.
 
 Once replied to successfully, the usbl command field will transition from
 being an ANNOUNCEMENT to a NOP as long as there is no data being pushed
@@ -89,7 +110,7 @@ A usbl pmux command payload has a structure as such:
     magic                   "pmux" in ascii
     mode                    3 = open (Not sure what others may be?)
     directon                0x62 = in, 0x37 = out
-    ack                     0 = sent, 1 = ack
+    ack_synx                0 = syn, 1 = ack
     status                  0x0001 = not connected, 0x1000 = established ... 0x0001 = control, 0x1000 = data?
     sequence_num            Number independent sequence for in and out
     length_payload          Total payload length
