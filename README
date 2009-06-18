@@ -11,3 +11,8 @@ Linux
 
 1. Be sure libusb-devel is installed.
 2. Compile and run precomd as root.
+
+OS X
+
+1. Install libusb via macports.
+2. Compile and run precomd as root.
