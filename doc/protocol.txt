@@ -1,0 +1,101 @@
+Communicating over USB using the novacom protocol
+
+The novacom protocol was developed internally at Palm to communicate
+a number of different features over USB to their pre device.  Some
+of the features of the novacom protocol include:
+
+  - Interactive TTY support for terminal-over-USB
+  - File transfer (both send and get)
+  - Execute command
+  - Read and write memory locations
+
+The novacom device is defined as having:
+
+    USB Class           255 (Vendor Specific)
+    USB Subclass        71
+    USB Protocol        17
+
+This device defines 3 endpoints, two bulk endpoints (one in, one out)
+and an interrupt endpoint.  I am not sure what the interrupt endpoint
+is for, but the main communication occurs over the bulk endpoints.
+
+The novacom protocol consists of two different layers:
+
+  - usbl
+  - pmux
+
+usbl handles the main communication across the wire.  It is a simple
+protocol which identifies two endpoint addresses (host and device),
+has some magic numbers, a version number (?) and a command.
+
+The commands, as I have interpreted them, are as follows:
+
+    -------------------------------------------------------------
+    USBL Command        Description
+    -------------------------------------------------------------
+    ANNOUNCEMENT        Establishing the connection
+    PMUX                Sending a command to the PMUX layer
+    NOP                 Idling on the wire, avoiding a timeout
+    
+Initially, when establishing the novacom connection, a packet is read
+from the incoming bulk endpoint with the following attributes:
+    
+    --------------------------------------------------------------
+    Field               Description
+    --------------------------------------------------------------
+    id_tx               A random number associated with the device
+    id_rx               All zeros
+    command             ANNOUNCEMENT
+    
+The actual payload associated with the ANNOUNCEMENT packet is as follows:
+
+    --------------------------------------------------------------
+    Field               Description
+    --------------------------------------------------------------
+    serial              ASCII representation of the serial number
+    forty               The value 0x40
+    zero                The value 0x00
+    y                   ???
+    z                   ???
+
+It is unknown to me, at this time, as to what the last y and z values
+are or what they mean.
+
+When replying to a usbl packet, the device will now be in the id_rx field,
+and the host ID will be in the id_tx field for the packet.  Since this is
+a strict point-to-point connection at the lowest level, I think these
+shouldn't change over the lifetime of the connection.
+
+Once replied to successfully, the usbl command field will transition from
+being an ANNOUNCEMENT to a NOP as long as there is no data being pushed
+up from the device.
+
+A NOP payload is very similar to the ANNOUNCEMENT payload with the 
+exception that only the null terminated ASCII serial number is present.
+
+Sitting idly, novacom will receive a new NOP packet every 0.5 to 1 second.
+There is a timeout associated such that if no NOP packet is received, the
+connection is lost and must be reestablished.
+
+The PMUX command is used to talk with the next layer up, the pmux layer.
+This layer provides simple packet counting and acknowledgement to guarantee
+packet delivery.
+
+A usbl pmux command payload has a structure as such:
+
+    --------------------------------------------------------------
+    Field                   Description
+    --------------------------------------------------------------
+    magic                   "pmux" in ascii
+    mode                    3 = open (Not sure what others may be?)
+    directon                0x62 = in, 0x37 = out
+    ack                     0 = sent, 1 = ack
+    status                  0x0001 = not connected, 0x1000 = established ... 0x0001 = control, 0x1000 = data?
+    sequence_num            Number independent sequence for in and out
+    length_payload          Total payload length
+    length_pmux_packet      Payload length + pmux header length (28)
+    zero                    Zero
+    payload                 The pmux payload data
+    
+I haven't had the ability to test any novacom communications protocols other
+than just the tty just yet.
