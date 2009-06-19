@@ -66,21 +66,15 @@ typedef struct {
 } novacom_ascii_t ;
 
 typedef struct {
+    // serial is NOT null terminated here
     char serial[40] ;
-    char forty ;
-    char zero ;
-    uint32 y ;
-    uint32 z ;
-} novacom_announce_t ;
-
-typedef struct {
-    char serial[40] ;
-    uint32 x ;
-    uint32 y ;
-    uint32 z ;
+    uint32 mtu ;
+    uint32 heartbeat ;
+    uint32 timeout ;
 } novacom_announcement_t ;
 
 typedef struct {
+    // serial IS null terminated here
     char serial[40] ;
 } novacom_nop_t ;
 
@@ -112,7 +106,7 @@ typedef struct {
     uint32 magic ;
     char mode ;
     char direction ;
-    uint16 ack ;
+    uint16 ack_synx ;
     uint16 status ;
     uint32 sequence_num ;
     uint32 length_payload ;
@@ -224,7 +218,7 @@ void novacom_payload_print( uint32 command, char payload[], uint32 size ) {
             printf( "  serial: %s\n", ((novacom_nop_t *)payload)->serial ) ;
             break ;
         case NOVACOM_CMD_ANNOUNCEMENT  :
-            printf( "  serial: %s\n", ((novacom_announce_t *)payload)->serial ) ;
+            printf( "  serial: %s\n", ((novacom_announcement_t *)payload)->serial ) ;
             break ;
         case NOVACOM_CMD_PMUX         :
             print_buf( payload, size ) ;
@@ -277,7 +271,9 @@ int novacom_reply_announcement( novacom_device_t *dev, uint32 len ) {
     dev->packet.id_tx = dev->id_host ;
     dev->packet.id_rx = dev->id_device ;
     sprintf( announce->serial, "0123456789abcdef0123456789abcdefdecafbad") ;
-    announce->y = 0x000007d0 ;
+    announce->mtu = 16384 ;
+    announce->heartbeat = 1000 ;
+    announce->timeout = 10000 ;
     return novacom_packet_write( dev, len, USB_TIMEOUT ) ;
 }
 
