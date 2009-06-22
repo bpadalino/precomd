@@ -66,16 +66,16 @@ typedef struct {
 } novacom_ascii_t ;
 
 typedef struct {
-    // serial is NOT null terminated here
-    char serial[40] ;
+    // nduid is NOT null terminated here
+    char nduid[40] ;
     uint32 mtu ;
     uint32 heartbeat ;
     uint32 timeout ;
 } novacom_announcement_t ;
 
 typedef struct {
-    // serial IS null terminated here
-    char serial[40] ;
+    // nduid IS null terminated here
+    char nduid[40] ;
 } novacom_nop_t ;
 
 // Structure to open the tty
@@ -215,10 +215,10 @@ void print_buf( char *buf, int size ) {
 void novacom_payload_print( uint32 command, char payload[], uint32 size ) {
     switch( command ) {
         case NOVACOM_CMD_NOP           :
-            printf( "  serial: %s\n", ((novacom_nop_t *)payload)->serial ) ;
+            printf( "  nduid: %s\n", ((novacom_nop_t *)payload)->nduid ) ;
             break ;
         case NOVACOM_CMD_ANNOUNCEMENT  :
-            printf( "  serial: %s\n", ((novacom_announcement_t *)payload)->serial ) ;
+            printf( "  nduid: %s\n", ((novacom_announcement_t *)payload)->nduid ) ;
             break ;
         case NOVACOM_CMD_PMUX         :
             print_buf( payload, size ) ;
@@ -262,7 +262,7 @@ int novacom_reply_nop( novacom_device_t *dev, uint32 len ) {
     novacom_nop_t *nop = (novacom_nop_t *) &(dev->packet.payload) ;
     dev->packet.id_tx = dev->id_host ;
     dev->packet.id_rx = dev->id_device ;    
-    sprintf( nop->serial, "0123456789abcdef0123456789abcdefdecafbad") ;
+    sprintf( nop->nduid, "0123456789abcdef0123456789abcdefdecafbad") ;
     return novacom_packet_write( dev, len, USB_TIMEOUT ) ;
 }
 
@@ -270,11 +270,29 @@ int novacom_reply_announcement( novacom_device_t *dev, uint32 len ) {
     novacom_announcement_t *announce = (novacom_announcement_t *) &(dev->packet.payload) ;
     dev->packet.id_tx = dev->id_host ;
     dev->packet.id_rx = dev->id_device ;
-    sprintf( announce->serial, "0123456789abcdef0123456789abcdefdecafbad") ;
+    sprintf( announce->nduid, "0123456789abcdef0123456789abcdefdecafbad") ;
     announce->mtu = 16384 ;
     announce->heartbeat = 1000 ;
     announce->timeout = 10000 ;
     return novacom_packet_write( dev, len, USB_TIMEOUT ) ;
+}
+
+int pmux_packet_process( novacom_device_t *dev ) { 
+    static uint32 seq_rx = 0 ;
+    static uint32 seq_tx = 0 ;
+    pmux_packet_t *pmux_packet = (pmux_packet_t *) &(dev->packet.payload) ;
+    
+    if( pmux_packet->magic != PMUX_HEADER_MAGIC ) exit( 1 ) ;
+    
+    if( seq_rx > pmux_packet->sequence_num ) exit( 1 ) ;
+    
+    if( seq_tx > pmux_packet->sequence_num ) exit( 1 ) ;
+    
+    // Check mode and process
+    
+    // Check syn/ack and process
+    
+    return 0 ;
 }
 
 int novacom_packet_process( novacom_device_t *dev, int len ) {
@@ -292,7 +310,8 @@ int novacom_packet_process( novacom_device_t *dev, int len ) {
             break ;
             
         case NOVACOM_CMD_PMUX :
-            printf( "Not implemented yet\n" ) ;
+            printf( "Processing PMUX packet\n" ) ;
+            return pmux_packet_process( dev ) ;
             break ;
         
         default :
@@ -312,6 +331,7 @@ int error_check( int ret, int quit, char *msg ) {
 }
 
 // TODO: Fill in these stubs
+
 int pmux_file_put( novacom_device_t *dev ) { return 0 ; }
 int pmux_file_get( novacom_device_t *dev ) { return 0 ; }
 
@@ -324,8 +344,6 @@ int pmux_program_run( novacom_device_t *dev, char *cmd, uint32 argc, char **argv
 
 int pmux_mem_put( novacom_device_t *dev, uint32 addr, uint32 data ) { return 0 ; }
 int pmux_mem_boot( novacom_device_t *dev, uint32 addr ) { return 0 ; }
-
-char TELNETD[] = "telnetd\n" ;
 
 int main () {
     
