@@ -1,0 +1,14 @@
+precomd
+config.mak
+autom4te.cache
+config.cache
+config.log
+config.status
+config.mak.autogen
+config.mak.append
+configure
+aclocal.m4
+Makefile
+Makefile.in
+.deps
+*.o
