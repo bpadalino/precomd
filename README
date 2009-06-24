@@ -10,9 +10,13 @@ Windows Cygwin Installation
 Linux
 
 1. Be sure libusb-devel is installed.
-2. Compile and run precomd as root.
+2. ./autogen.sh; ./configure; make
+3. run precomd (from src) as root.
 
 OS X
 
 1. Install libusb via macports.
-2. Compile and run precomd as root.
+2. Be sure that your CPATH is set correctly (typically /opt/local/include)
+3. Be sure that your LIBRARY_PATH is set correctly (typically by adding /opt/local/lib)
+4. ./autogen.sh; ./configure; make
+5. run precomd (from src) as root.
