@@ -11,6 +11,6 @@ run()
 
 run aclocal ${ACLOCAL_ARGS}
 run libtoolize --copy --force
-#run autoheader
+run autoheader
 run automake --add-missing --foreign --copy
 run autoconf

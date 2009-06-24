@@ -12,3 +12,11 @@ Makefile
 Makefile.in
 .deps
 *.o
+*.a
+*.la
+*.lo
+*.loT
+src/config.h
+src/.libs
+src/config.h.in
+test/test_all

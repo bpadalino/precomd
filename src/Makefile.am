@@ -1,3 +1,4 @@
-bin_PROGRAMS = precomd
-precomd_SOURCES = precomd.c
-precomd_LDFLAGS = -lusb
+noinst_LIBRARIES = libnovacom.a
+
+libnovacom_a_SOURCES = novacom.c pmux.c
+LDFLAGS = -lusb
