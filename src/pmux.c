@@ -5,7 +5,7 @@
  *      Author: mike.gaffney
  */
 
-#include <pmux.h>
+#include "pmux.h"
 
 
 int pmux_packet_process( novacom_device_t *dev ) {
@@ -34,7 +34,7 @@ int pmux_terminal_close( novacom_device_t *dev ) { return 0 ; }
 int pmux_terminal_send( novacom_device_t *dev, char *cmd ) { return 0 ; }
 int pmux_terminal_receive( novacom_device_t *dev, char *buf ) { return 0 ; }
 
-int pmux_program_run( novacom_device_t *dev, char *cmd, uint32 argc, char **argv ) { return 0 ; }
+int pmux_program_run( novacom_device_t *dev, uint32 argc, char **argv ) { return 0 ; }
 
 int pmux_mem_put( novacom_device_t *dev, uint32 addr, uint32 data ) { return 0 ; }
 int pmux_mem_boot( novacom_device_t *dev, uint32 addr ) { return 0 ; }

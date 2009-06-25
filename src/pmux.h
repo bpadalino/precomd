@@ -13,6 +13,27 @@
 
 #include "novacom.h"
 
+#define PMUX_HEADER_VERSION         1
+
+#define PMUX_HEADER_TYPE_DATA       0
+#define PMUX_HEADER_TYPE_ERR        1
+#define PMUX_HEADER_TYPE_OOB        2
+
+#define PMUX_OOB_EOF                0
+#define PMUX_OOB_SIGNAL             1
+#define PMUX_OOB_RETURN             2
+#define PMUX_OOB_RESIZE             3
+
+#define PMUX_FILENO_STDIN           0
+#define PMUX_FILENO_STDOUT          1
+#define PMUX_FILENO_STDERR          2
+
+typedef struct {
+    uint32 type ;
+    uint32 payload ;
+    uint32 zero[3]
+} pmux_oob_t ;
+
 // Structure to open the tty
 typedef struct {
     uint32 three ;
@@ -21,21 +42,21 @@ typedef struct {
 } pmux_channel_open_t ;
 
 typedef struct {
-    char opentty[0] ;
-} pmux_tty_open_request_t ;
+    char request[0] ;
+} pmux_cmd_request_t ;
 
 typedef struct {
     char reply[0] ;
-} pmux_tty_open_reply_t ;
+} pmux_cmd_reply_t ;
 
 // Structure for the tty
 typedef struct {
     uint32 magic ;
-    uint32 one ;
+    uint32 version ;
     uint32 length ;
-    uint32 zero ;
+    uint32 type ;
     char payload[0] ;
-} pmux_tty_payload_t ;
+} pmux_data_payload_t ;
 
 typedef struct {
     uint32 magic ;
@@ -59,7 +80,7 @@ int pmux_terminal_close( novacom_device_t *);
 int pmux_terminal_send( novacom_device_t *, char *);
 int pmux_terminal_receive( novacom_device_t *, char *);
 
-int pmux_program_run( novacom_device_t *, char *, uint32 , char **);
+int pmux_program_run( novacom_device_t *, uint32 , char **);
 
 int pmux_mem_put( novacom_device_t *, uint32 , uint32);
 int pmux_mem_boot( novacom_device_t *, uint32);

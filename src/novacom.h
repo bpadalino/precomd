@@ -8,12 +8,12 @@
 #ifndef NOVACOM_H_
 #define NOVACOM_H_
 
-#define uint32 unsigned int
-#define uint16 short
+#define uint32                         unsigned int
+#define uint16                         short
 
 #define USB_VENDOR_PALM             0x0830
 #define USB_TIMEOUT                 5000
-#define USB_BUFLEN                  2048
+#define USB_BUFLEN                  32768
 
 #define NOVACOM_USB_CLASS           255
 #define NOVACOM_USB_SUBCLASS        71
@@ -30,12 +30,12 @@ static char *NOVACOM_COMMANDS[] = {
     "PMUX"
 } ;
 
-#define PMUX_HEADER_MAGIC   0x7573626c
-#define PMUX_HEADER_VERSION 0x00000001
+#define PMUX_HEADER_MAGIC           0x7573626c
+#define PMUX_HEADER_VERSION         0x00000001
 
-#define PMUX_ASCII_MAGIC 0x706d7578
-#define PMUX_ASCII_TX 0x00370370
-#define PMUX_ASCII_RX 0x0162
+#define PMUX_ASCII_MAGIC             0x706d7578
+#define PMUX_TX                     0x0037
+#define PMUX_RX                     0x0162
 
 typedef struct {
     uint32 magic ;

@@ -159,6 +159,8 @@ int novacom_reply_nop( novacom_device_t *dev, uint32 len ) {
     novacom_nop_t *nop = (novacom_nop_t *) &(dev->packet.payload) ;
     dev->packet.id_tx = dev->id_host ;
     dev->packet.id_rx = dev->id_device ;
+	// TODO: See if we can find out how the nduid is calculated
+	// or just randomize it.
     sprintf( nop->nduid, "0123456789abcdef0123456789abcdefdecafbad") ;
     return novacom_packet_write( dev, len, USB_TIMEOUT ) ;
 }
@@ -167,6 +169,8 @@ int novacom_reply_announcement( novacom_device_t *dev, uint32 len ) {
     novacom_announcement_t *announce = (novacom_announcement_t *) &(dev->packet.payload) ;
     dev->packet.id_tx = dev->id_host ;
     dev->packet.id_rx = dev->id_device ;
+	// TODO: See if we can find out how the nduid is calculted
+	// or just randomize it.
     sprintf( announce->nduid, "0123456789abcdef0123456789abcdefdecafbad") ;
     announce->mtu = 16384 ;
     announce->heartbeat = 1000 ;
@@ -175,6 +179,8 @@ int novacom_reply_announcement( novacom_device_t *dev, uint32 len ) {
 }
 
 int novacom_packet_process( novacom_device_t *dev, int len ) {
+	// TODO: Perform checking for magic number and other header
+	// information here
     switch ( dev->packet.command ) {
         case NOVACOM_CMD_NOP    :
             printf( "Sending NOP reply\n" ) ;
@@ -182,6 +188,7 @@ int novacom_packet_process( novacom_device_t *dev, int len ) {
             break ;
 
         case NOVACOM_CMD_ANNOUNCEMENT :
+			// TODO: Randomize this value
             dev->id_host   = 0x00004ae1 ;
             dev->id_device = dev->packet.id_tx ;
             printf( "Sending ANNOUNCEMENT reply\n" ) ;
