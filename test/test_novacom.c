@@ -16,8 +16,8 @@ FCT_BGN()
 		struct usb_interface_descriptor novacom_descriptor = {0, 0, 0, 0, 0, NOVACOM_USB_CLASS, NOVACOM_USB_SUBCLASS, NOVACOM_USB_PROTOCOL};
 		struct usb_interface_descriptor non_novacom_descriptor = {0, 0, 0, 0, 0, 0, NOVACOM_USB_SUBCLASS, NOVACOM_USB_PROTOCOL};
 
-		fct_chk(is_interface_novacom(novacom_descriptor));
-		fct_chk(!is_interface_novacom(non_novacom_descriptor));
+		fct_chk(is_interface_novacom(&novacom_descriptor));
+		fct_chk(!is_interface_novacom(&non_novacom_descriptor));
 	}
 	FCT_TEST_END();
 
