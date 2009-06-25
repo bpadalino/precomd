@@ -7,6 +7,7 @@
 
 #ifndef NOVACOM_H_
 #define NOVACOM_H_
+#include <usb.h>
 
 #define uint32                         unsigned int
 #define uint16                         short
@@ -76,6 +77,7 @@ typedef struct {
 } novacom_nop_t ;
 
 struct usb_dev_handle* novacom_find_endpoints( uint32 *ep_in, uint32 *ep_out );
+int is_interface_novacom(struct usb_interface_descriptor interface);
 int novacom_init( novacom_device_t *dev );
 void print_buf( char *buf, int size );
 void novacom_payload_print( uint32 command, char payload[], uint32 size );

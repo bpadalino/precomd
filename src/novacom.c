@@ -39,9 +39,7 @@ struct usb_dev_handle* novacom_find_endpoints( uint32 *ep_in, uint32 *ep_out ) {
                     /* Loop through all of the alternate settings */
                     for (a = 0; a < dev->config[c].interface[i].num_altsetting; a++) {
                         /* Check if this interface is novacom on the phone */
-                        if (dev->config[c].interface[i].altsetting[a].bInterfaceClass == NOVACOM_USB_CLASS &&
-                            dev->config[c].interface[i].altsetting[a].bInterfaceSubClass == NOVACOM_USB_SUBCLASS &&
-                            dev->config[c].interface[i].altsetting[a].bInterfaceProtocol == NOVACOM_USB_PROTOCOL ) {
+                        if (is_interface_novacom(dev->config[c].interface[i].altsetting[a])) {
                                 /* Open the device, set the alternate setting, claim the interface and do your processing */
                                 // printf( "Novacom found!\n") ;
                                 retval = usb_open( dev ) ;
@@ -75,6 +73,13 @@ struct usb_dev_handle* novacom_find_endpoints( uint32 *ep_in, uint32 *ep_out ) {
 
     return retval ;
 
+}
+
+int is_interface_novacom(struct usb_interface_descriptor interface)
+{
+	return interface.bInterfaceClass == NOVACOM_USB_CLASS &&
+		   interface.bInterfaceSubClass == NOVACOM_USB_SUBCLASS &&
+		   interface.bInterfaceProtocol == NOVACOM_USB_PROTOCOL;
 }
 
 int novacom_init( novacom_device_t *dev ) {

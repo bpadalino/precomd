@@ -11,7 +11,16 @@ FCT_BGN()
  /* A simple test case. No setup/teardown. */
  FCT_SUITE_BGN(integration)
  {
-	/* An actual test case in the test suite. */
+	FCT_TEST_BGN(test_is_novacom_interface)
+	{
+		struct usb_interface_descriptor novacom_descriptor = {0, 0, 0, 0, 0, NOVACOM_USB_CLASS, NOVACOM_USB_SUBCLASS, NOVACOM_USB_PROTOCOL};
+		struct usb_interface_descriptor non_novacom_descriptor = {0, 0, 0, 0, 0, 0, NOVACOM_USB_SUBCLASS, NOVACOM_USB_PROTOCOL};
+
+		fct_chk(is_interface_novacom(novacom_descriptor));
+		fct_chk(!is_interface_novacom(non_novacom_descriptor));
+	}
+	FCT_TEST_END();
+
 	FCT_TEST_BGN(test_open_pre_ping_and_close)
 	{
 		/* The USB device with other relavent information */
@@ -28,7 +37,7 @@ FCT_BGN()
 			/* Iterate through a NOP loop */
 			int i;
 			int novacom_packet_read_return;
-			for(i = 0 ; i  < 10 ; i++ ) {
+			for(i = 0 ; i  < 1 ; i++ ) {
 				printf( "Iteration: %i\n", i ) ;
 				novacom_packet_read_return = novacom_packet_read( dev, USB_BUFLEN, USB_TIMEOUT );
 				fct_chk(novacom_packet_read_return >= 0);
