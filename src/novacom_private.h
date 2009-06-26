@@ -110,10 +110,13 @@ typedef struct {
 
 typedef struct {
     uint32 magic ;
-    char mode ;
-    char direction ;
-    uint16 ack_synx ;
-    uint16 status ;
+    char verison ;
+    char pad ;
+    uint16 flags ;
+    uint16 channel_num ;
+	// Channel 1 is control
+	// Channel 4096 is start of host -> device comms
+	// Channel 0x80000000 is start of device -> host comms
     uint32 sequence_num ;
     uint32 length_payload ;
     uint32 length_pmux_packet ;
