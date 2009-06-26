@@ -1,5 +1,6 @@
 #include "fct.h"
 #include <novacom.h>
+#include <novacom_private.h>
 
 #include <stdio.h>
 #include <unistd.h>
