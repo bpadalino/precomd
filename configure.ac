@@ -15,6 +15,6 @@ AC_CONFIG_FILES([Makefile
 				 src/Makefile
 				 test/Makefile])
 
-AC_CHECK_LIB([usb], [usb_init])
+AC_CHECK_LIB([usb], [usb_init], [], [echo "libusb-devel is required"; exit -1])
 
 AC_OUTPUT
