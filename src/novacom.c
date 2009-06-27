@@ -95,7 +95,7 @@ int novacom_init( novacom_device_t *dev ) {
     return 0 ;
 }
 
-void print_buf( unsigned char *buf, int size ) {
+void print_buf( char *buf, uint32 size ) {
     int x ;
     char c ;
     printf( "\nhex:\n\n    ") ;
@@ -115,7 +115,7 @@ void print_buf( unsigned char *buf, int size ) {
     return ;
 }
 
-void novacom_payload_print( uint32 command, unsigned char payload[], uint32 size ) {
+void novacom_payload_print( uint32 command, uint8 payload[], uint32 size ) {
     switch( command ) {
         case NOVACOM_CMD_NOP           :
             printf( "  nduid: %s\n", ((novacom_nop_t *)payload)->nduid ) ;
@@ -124,7 +124,7 @@ void novacom_payload_print( uint32 command, unsigned char payload[], uint32 size
             printf( "  nduid: %s\n", ((novacom_announcement_t *)payload)->nduid ) ;
             break ;
         case NOVACOM_CMD_PMUX         :
-            print_buf( payload, size ) ;
+            print_buf( (char *)payload, size ) ;
     }
 
     return ;
@@ -132,17 +132,17 @@ void novacom_payload_print( uint32 command, unsigned char payload[], uint32 size
 }
 
 int novacom_packet_read( novacom_device_t *dev, uint32 size, uint32 timeout ) {
-    return usb_bulk_read( dev->phone, dev->ep_rx, (char *)&dev->packet, size, timeout ) ;
+    return usb_bulk_read( dev->phone, dev->ep_rx, (int8 *)&dev->packet, size, timeout ) ;
 }
 
 int novacom_packet_write( novacom_device_t *dev, uint32 size, uint32 timeout ) {
     if (dev->state!=STATE_TERMINAL) {
         fprintf(stderr,"Writing packet of %d bytes\n",size);
     }
-    return usb_bulk_write( dev->phone, dev->ep_tx, (char *)&dev->packet, size, timeout ) ;
+    return usb_bulk_write( dev->phone, dev->ep_tx, (int8 *)&dev->packet, size, timeout ) ;
 }
 
-void novacom_packet_print( novacom_packet_t *packet, int size ) {
+void novacom_packet_print( novacom_packet_t *packet, uint32 size ) {
 
     printf( "magic string   : 0x%8.8x\n", packet->magic ) ;
     printf( "version        : 0x%8.8x\n", packet->version ) ;
@@ -185,7 +185,7 @@ int novacom_reply_announcement( novacom_device_t *dev, uint32 len ) {
     return novacom_packet_write( dev, len, USB_TIMEOUT ) ;
 }
 
-static void print_payload(unsigned char *payload,int len)
+static void print_payload(uint8 *payload, uint32 len)
 {
     fprintf(stderr,"payload:");
     int i = 0;
@@ -197,10 +197,10 @@ static void print_payload(unsigned char *payload,int len)
 
 static void print_pmux(pmux_packet_t *pmux)
 {
-    fprintf(stderr,"pmux direction: %02x\n",pmux->direction);
-    fprintf(stderr,"pmux ack/syn: %04x\n",pmux->ack_synx);
-    fprintf(stderr,"pmux status: %04x\n",pmux->status);
-    fprintf(stderr,"pmux unknown: %04x\n",pmux->unknown);
+    fprintf(stderr,"pmux version: %02x\n",pmux->version);
+    fprintf(stderr,"pmux ack_synx: %02x\n",pmux->ack_synx);
+    fprintf(stderr,"pmux flags: %04x\n",pmux->flags);
+    fprintf(stderr,"pmux channel_num: %04x\n",pmux->channel_num);
     fprintf(stderr,"pmux sequence_num: %08x\n",pmux->sequence_num);
     fprintf(stderr,"pmux length_payload: %08x\n",pmux->length_payload);
     fprintf(stderr,"pmux length_pmux_packet: %08x\n",pmux->length_pmux_packet);
@@ -208,7 +208,7 @@ static void print_pmux(pmux_packet_t *pmux)
 }
 
 
-static void pmux_ack(novacom_device_t *dev,int seq_num)
+static void pmux_ack(novacom_device_t *dev, uint32 seq_num)
 {
     if (dev->state!=STATE_TERMINAL) {
        fprintf(stderr,"Sending ack\n");
@@ -221,11 +221,11 @@ static void pmux_ack(novacom_device_t *dev,int seq_num)
     {
         pmux_packet_t *pmux = (pmux_packet_t *)dev->packet.payload;
         pmux->magic = PMUX_ASCII_MAGIC;
-        pmux->mode = PMUX_MODE_NORMAL;
-        pmux->direction = PMUX_OUT;
+        pmux->version = PMUX_MODE_NORMAL;
+        pmux->pad = PMUX_OUT;
         pmux->ack_synx = PMUX_ACK;
-        pmux->status = dev->pmux_status;
-        pmux->unknown = 0;
+        pmux->flags = dev->pmux_flags;
+        pmux->channel_num = 0;
         pmux->sequence_num = seq_num;
         pmux->length_payload = 0x00;
         pmux->length_pmux_packet = 0x1c;
@@ -239,7 +239,7 @@ static void pmux_ack(novacom_device_t *dev,int seq_num)
 }
 
 
-static void pmux_write_tty(novacom_device_t *dev,char *str,int str_len)
+static void pmux_write_tty(novacom_device_t *dev,char *str,uint32 str_len)
 {
     int len = 0;
 
@@ -250,24 +250,24 @@ static void pmux_write_tty(novacom_device_t *dev,char *str,int str_len)
     dev->packet.id_rx = dev->id_device ;
     dev->packet.command = NOVACOM_CMD_PMUX ;
     len += sizeof(dev->packet);
-    int cmd_len = sizeof(pmux_tty_payload_t)+str_len;
+    int cmd_len = sizeof(pmux_data_payload_t)+str_len;
     pmux_packet_t *pmux = (pmux_packet_t *)dev->packet.payload;
     pmux->magic = PMUX_ASCII_MAGIC;
-    pmux->mode = PMUX_MODE_NORMAL;
-    pmux->direction = PMUX_OUT;
+    pmux->version = PMUX_MODE_NORMAL;
+    pmux->pad = PMUX_OUT;
     pmux->ack_synx = PMUX_SYN;
-    pmux->status = PMUX_ESTABLISHED;
-    dev->pmux_status = PMUX_ESTABLISHED;
-    pmux->unknown = 0;
+    pmux->flags = PMUX_ESTABLISHED;
+    dev->pmux_flags = PMUX_ESTABLISHED;
+    pmux->channel_num = 0;
     pmux->sequence_num = dev->pmux_tty_seq_num;
     pmux->length_payload = cmd_len;
     pmux->length_pmux_packet = 0x1c+cmd_len;
     pmux->zero = 0x00000000;
-    pmux_tty_payload_t *tty = (pmux_tty_payload_t *)pmux->payload;
+    pmux_data_payload_t *tty = (pmux_data_payload_t *)pmux->payload;
     tty->magic = PMUX_TTY_MAGIC;
-    tty->one = 0x00000001;
+    tty->version = 0x00000001;
     tty->length = str_len;
-    tty->zero = 0x00000000;
+    tty->type = 0x00000000;
     memcpy(tty->payload,str,str_len);
     len += sizeof(*pmux);
     len += cmd_len;
@@ -285,14 +285,14 @@ static void pmux_write_command(novacom_device_t *dev,char *cmd)
     dev->packet.command = NOVACOM_CMD_PMUX ;
     len += sizeof(dev->packet);
     {
-        int cmd_len = strlen(cmd);
+        int cmd_len = strlen((char *)cmd);
         pmux_packet_t *pmux = (pmux_packet_t *)dev->packet.payload;
         pmux->magic = PMUX_ASCII_MAGIC;
-        pmux->mode = PMUX_MODE_NORMAL;
-        pmux->direction = PMUX_OUT;
+        pmux->version = PMUX_MODE_NORMAL;
+        pmux->pad = PMUX_OUT;
         pmux->ack_synx = PMUX_SYN;
-        pmux->status = PMUX_ESTABLISHED;
-        dev->pmux_status = PMUX_ESTABLISHED;
+        pmux->flags = PMUX_ESTABLISHED;
+        dev->pmux_flags = PMUX_ESTABLISHED;
         pmux->sequence_num = 1;
         dev->pmux_tty_seq_num = 1;
         pmux->length_payload = cmd_len;
@@ -307,7 +307,7 @@ static void pmux_write_command(novacom_device_t *dev,char *cmd)
 }
 
 
-static void print_payload_str(unsigned char *payload,int len)
+static void print_payload_str(uint8 *payload,uint32 len)
 {
     int i = 0;
     for (;i<len;++i) {
@@ -316,7 +316,7 @@ static void print_payload_str(unsigned char *payload,int len)
 }
 
 
-static int read_input(char *buf,int buf_size)
+static int read_input(char *buf,uint32 buf_size)
 {
   fd_set readfds;
   struct timeval timeout;
@@ -344,11 +344,11 @@ int pmux_terminal_open( novacom_device_t *dev )
     {
         pmux_packet_t *pmux = (pmux_packet_t *)dev->packet.payload;
         pmux->magic = PMUX_ASCII_MAGIC;
-        pmux->mode = PMUX_MODE_NORMAL;
-        pmux->direction = PMUX_OUT;
+        pmux->version = PMUX_MODE_NORMAL;
+        pmux->pad = PMUX_OUT;
         pmux->ack_synx = PMUX_SYN;
-        pmux->status = PMUX_NOT_CONNECTED;
-        dev->pmux_status = PMUX_NOT_CONNECTED;
+        pmux->flags = PMUX_NOT_CONNECTED;
+        dev->pmux_flags = PMUX_NOT_CONNECTED;
         pmux->sequence_num = 1;
         pmux->length_payload = 0x0c;
         pmux->length_pmux_packet = 0x28;
@@ -375,8 +375,8 @@ int pmux_packet_process( novacom_device_t *dev ) {
         exit(1) ;
     }
 
-    if (pmux->mode != PMUX_MODE_NORMAL) {
-    fprintf(stderr,"Invalid pmux mode\n");
+    if (pmux->version != PMUX_MODE_NORMAL) {
+        fprintf(stderr,"Invalid pmux version\n");
     exit(1);
     }
 
@@ -409,13 +409,13 @@ int pmux_packet_process( novacom_device_t *dev ) {
         dev->state=STATE_TERMINAL;
     }
     else if (dev->state==STATE_TERMINAL) {
-        pmux_tty_payload_t *tty = (pmux_tty_payload_t *)pmux->payload;
+        pmux_data_payload_t *tty = (pmux_data_payload_t *)pmux->payload;
         if (tty->magic!=PMUX_TTY_MAGIC) {
         fprintf(stderr,"Bad terminal magic\n");
-        dev->pmux_status = pmux->status;
+        dev->pmux_flags = pmux->flags;
         pmux_ack(dev,pmux->sequence_num);
         pmux_terminal_open(dev);
-        dev->pmux_status = PMUX_ESTABLISHED;
+        dev->pmux_flags = PMUX_ESTABLISHED;
         dev->state=STATE_TERMINAL;
         }
         else {
@@ -434,7 +434,7 @@ int pmux_packet_process( novacom_device_t *dev ) {
     return 0 ;
 }
 
-int novacom_packet_process( novacom_device_t *dev, int len ) {
+int novacom_packet_process( novacom_device_t *dev, uint32 len ) {
     // TODO: Perform checking for magic number and other header
     // information here
     switch ( dev->packet.command ) {
@@ -484,27 +484,6 @@ int error_check( int ret, int quit, char *msg ) {
         if( quit ) exit( 1 ) ;
     }
     return ret ;
-}
-
-
-
-
-int pmux_packet_process( novacom_device_t *dev ) {
-    static uint32 seq_rx = 0 ;
-    static uint32 seq_tx = 0 ;
-    pmux_packet_t *pmux_packet = (pmux_packet_t *) &(dev->packet.payload) ;
-
-    if( pmux_packet->magic != PMUX_HEADER_MAGIC ) exit( 1 ) ;
-
-    if( seq_rx > pmux_packet->sequence_num ) exit( 1 ) ;
-
-    if( seq_tx > pmux_packet->sequence_num ) exit( 1 ) ;
-
-    // Check mode and process
-
-    // Check syn/ack and process
-
-    return 0 ;
 }
 
 int pmux_file_put( novacom_device_t *dev ) { return 0 ; }

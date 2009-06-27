@@ -17,7 +17,9 @@
 #define NOVACOM_H_
 
 #define uint32 unsigned int
-#define uint16 short
+#define uint16 unsigned short
+#define uint8  unsigned char
+#define int8   char
 
 typedef struct {
     uint32 magic ;
@@ -25,7 +27,7 @@ typedef struct {
     uint32 id_tx ;
     uint32 id_rx ;
     uint32 command ;
-    char payload[0] ;
+    uint8 payload[0] ;
 } novacom_packet_t ;
 
 typedef struct {
@@ -34,7 +36,10 @@ typedef struct {
     uint32 ep_tx ;
     uint32 id_host ;
     uint32 id_device ;
-    char id_session[40] ;
+    uint8 id_session[40] ;
+    uint32 state ;
+    uint32 pmux_flags ;
+    uint32 pmux_tty_seq_num ;
     novacom_packet_t packet ;
 } novacom_device_t ;
 

@@ -16,8 +16,10 @@
 #define NOVACOM_PRIVATE_H_
 #include <usb.h>
 
-#define uint32                         unsigned int
-#define uint16                         short
+#define uint32                      unsigned int
+#define uint16                      unsigned short
+#define uint8                       unsigned char
+#define int8                        char
 
 #define USB_VENDOR_PALM             0x0830
 #define USB_TIMEOUT                 5000
@@ -59,10 +61,31 @@ static char *NOVACOM_COMMANDS[] = {
 #define PMUX_TX                     0x0037
 #define PMUX_RX                     0x0162
 
+#define PMUX_TTY_MAGIC 0xdecafbad
+
+#define PMUX_MODE_NORMAL 3
+
+#define PMUX_IN 0x62
+#define PMUX_OUT 0x37
+
+#define PMUX_SYN 0x0000
+#define PMUX_ACK 0x0001
+
+#define PMUX_NOT_CONNECTED 0x0001
+#define PMUX_ESTABLISHED 0x1000
+
+#define STATE_WAIT_ANNOUNCE 0
+#define STATE_OPEN_ACK 1
+#define STATE_GOT_ANNOUNCE 2
+#define STATE_LIMBO 3
+#define STATE_COMMAND_ACK 4
+#define STATE_WAIT_OK 5
+#define STATE_TERMINAL 6
+
 typedef struct {
     uint32 magic ;
     uint32 direction ;
-    char *command ;
+    uint8 *command ;
 } novacom_ascii_t ;
 
 typedef struct {
@@ -92,7 +115,7 @@ typedef struct {
 } pmux_channel_open_t ;
 
 typedef struct {
-    char request[0] ;
+    uint8 request[0] ;
 } pmux_cmd_request_t ;
 
 typedef struct {
@@ -105,36 +128,37 @@ typedef struct {
     uint32 version ;
     uint32 length ;
     uint32 type ;
-    char payload[0] ;
+    uint8 payload[0] ;
 } pmux_data_payload_t ;
 
 typedef struct {
     uint32 magic ;
-    char verison ;
-    char pad ;
+    uint8 version ;
+    uint8 pad ;
+    uint16 ack_synx ;
     uint16 flags ;
     uint16 channel_num ;
-	// Channel 1 is control
-	// Channel 4096 is start of host -> device comms
-	// Channel 0x80000000 is start of device -> host comms
+    // Channel 1 is control
+    // Channel 4096 is start of host -> device comms
+    // Channel 0x80000000 is start of device -> host comms
     uint32 sequence_num ;
     uint32 length_payload ;
     uint32 length_pmux_packet ;
     uint32 zero ;
-    char payload[0] ;
+    uint8 payload[0] ;
 } pmux_packet_t ;
 
 struct usb_dev_handle* novacom_find_endpoints( uint32 *ep_in, uint32 *ep_out );
 int is_interface_novacom(struct usb_interface_descriptor *interface);
 int novacom_init( novacom_device_t *dev );
-void print_buf( char *buf, int size );
-void novacom_payload_print( uint32 command, char payload[], uint32 size );
+void print_buf( char *buf, uint32 size );
+void novacom_payload_print( uint32 command, uint8 payload[], uint32 size );
 int novacom_packet_read( novacom_device_t *dev, uint32 size, uint32 timeout );
 int novacom_packet_write( novacom_device_t *dev, uint32 size, uint32 timeout );
-void novacom_packet_print( novacom_packet_t *packet, int size );
+void novacom_packet_print( novacom_packet_t *packet, uint32 size );
 int novacom_reply_nop( novacom_device_t *dev, uint32 len );
 int novacom_reply_announcement( novacom_device_t *dev, uint32 len );
-int novacom_packet_process( novacom_device_t *dev, int len );
+int novacom_packet_process( novacom_device_t *dev, uint32 len );
 int error_check( int ret, int quit, char *msg );
 
 
