@@ -6,9 +6,16 @@ config.log
 config.status
 config.mak.autogen
 config.mak.append
-configure
 aclocal.m4
 Makefile
 Makefile.in
 .deps
 *.o
+*.a
+*.la
+*.lo
+*.loT
+src/config.h
+src/.libs
+src/config.h.in
+test/test_all
