@@ -48,6 +48,9 @@
 #define PMUX_FILENO_STDOUT          1
 #define PMUX_FILENO_STDERR          2
 
+#define PMUX_CMD_OPEN               3
+#define PMUX_CMD_CLOSE              4
+
 static char *NOVACOM_COMMANDS[] = {
     "NOP",
     "",
@@ -61,7 +64,7 @@ static char *NOVACOM_COMMANDS[] = {
 #define PMUX_TX                     0x0037
 #define PMUX_RX                     0x0162
 
-#define PMUX_TTY_MAGIC 0xdecafbad
+#define PMUX_DATA_MAGIC 0xdecafbad
 
 #define PMUX_MODE_NORMAL 3
 
@@ -80,7 +83,8 @@ static char *NOVACOM_COMMANDS[] = {
 #define STATE_LIMBO 3
 #define STATE_COMMAND_ACK 4
 #define STATE_WAIT_OK 5
-#define STATE_TERMINAL 6
+#define STATE_TTY 6
+#define STATE_CLOSED 7
 
 typedef struct {
     uint32 magic ;
@@ -107,12 +111,22 @@ typedef struct {
     uint32 zero[3] ;
 } pmux_oob_t ;
 
+
+// pmux payload for control
+typedef struct {
+    uint32 command;
+    uint32 hex1000;
+    uint32 hex000c;
+} pmux_control_payload_t;
+
+#if 0
 // Structure to open the tty
 typedef struct {
     uint32 three ;
     uint32 ten ;
     uint32 dee ;
 } pmux_channel_open_t ;
+#endif
 
 typedef struct {
     uint8 request[0] ;
