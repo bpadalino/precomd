@@ -1,7 +1,4 @@
-precomd
 novacomd
-Makefile
-.deps
 *.o
 *.a
 *.la
