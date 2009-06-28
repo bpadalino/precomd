@@ -58,9 +58,9 @@ static char *NOVACOM_COMMANDS[] = {
     "PMUX"
 } ;
 
-#define PMUX_HEADER_MAGIC           0x7573626c
+#define PMUX_HEADER_MAGIC           0x7573626c  /* usbl */
 
-#define PMUX_ASCII_MAGIC             0x706d7578
+#define PMUX_ASCII_MAGIC             0x706d7578  /* pmux */
 #define PMUX_TX                     0x0037
 #define PMUX_RX                     0x0162
 
@@ -171,8 +171,8 @@ void novacom_payload_print( uint32 command, uint8 payload[], uint32 size );
 int novacom_packet_read( novacom_device_t *dev, uint32 size, uint32 timeout );
 int novacom_packet_write( novacom_device_t *dev, uint32 size, uint32 timeout );
 void novacom_packet_print( novacom_packet_t *packet, uint32 size );
-int novacom_reply_nop( novacom_device_t *dev, uint32 len );
-int novacom_reply_announcement( novacom_device_t *dev, uint32 len );
+int novacom_reply_nop( novacom_device_t *dev, uint32 len, const char *serial);
+int novacom_reply_announcement( novacom_device_t *dev);
 int novacom_packet_process( novacom_device_t *dev, uint32 len );
 int error_check( int ret, int quit, char *msg );
 

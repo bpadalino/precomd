@@ -92,6 +92,8 @@ int novacom_init( novacom_device_t *dev ) {
     printf( "Novacom found: bulk_ep_in: 0x%2.2x bulk_ep_out: 0x%2.2x\n\n", dev->ep_rx, dev->ep_tx ) ;
 
     dev->state = STATE_WAIT_ANNOUNCE;
+    dev->id_device = 0;
+    dev->channel_num = 0;
     
     return 0 ;
 }
@@ -165,25 +167,35 @@ void novacom_packet_print( novacom_packet_t *packet, uint32 size ) {
     return ;
 }
 
-static const char *dummy_serial = "0c698734f53d02dcf0b0fa2335de38992e65d9ce";
+static char dummy_serial[]  = "0c698734f53d02dcf0b0fa2335de38992e65d9ce";
 
-int novacom_reply_nop( novacom_device_t *dev, uint32 len ) {
+int novacom_reply_nop( novacom_device_t *dev, uint32 len, const char *serial ) {
+    if (dev->state!=STATE_TTY) {
+        fprintf(stderr,"Sending NOP\n");
+    }
     novacom_nop_t *nop = (novacom_nop_t *) &(dev->packet.payload) ;
+    dev->packet.magic = PMUX_HEADER_MAGIC;
+    dev->packet.version = 1;
+    dev->packet.command = NOVACOM_CMD_NOP;
     dev->packet.id_tx = dev->id_host ;
     dev->packet.id_rx = dev->id_device ;    
-    sprintf( nop->nduid, dummy_serial) ;
+    sprintf( nop->nduid, serial) ;
     return novacom_packet_write( dev, len, USB_TIMEOUT ) ;
 }
 
-int novacom_reply_announcement( novacom_device_t *dev, uint32 len ) {
+int novacom_reply_announcement(novacom_device_t *dev) {
+    fprintf(stderr,"Sending announcement\n");
     novacom_announcement_t *announce = (novacom_announcement_t *) &(dev->packet.payload) ;
+    dev->packet.magic = PMUX_HEADER_MAGIC;
+    dev->packet.version = 1;
+    dev->packet.command = NOVACOM_CMD_ANNOUNCEMENT;
     dev->packet.id_tx = dev->id_host ;
     dev->packet.id_rx = dev->id_device ;
     sprintf( announce->nduid, dummy_serial) ;
     announce->mtu = 16384 ;
     announce->heartbeat = 1000 ;
     announce->timeout = 10000 ;
-    return novacom_packet_write( dev, len, USB_TIMEOUT ) ;
+    return novacom_packet_write( dev, 72, USB_TIMEOUT ) ;
 }
 
 static void print_payload(uint8 *payload, uint32 len)
@@ -252,7 +264,7 @@ static void pmux_ack(novacom_device_t *dev, uint32 seq_num)
         pmux->pad = PMUX_OUT;
         pmux->ack_synx = PMUX_ACK;
         pmux->flags = dev->pmux_flags;
-        pmux->channel_num = 0;
+        pmux->channel_num = dev->channel_num;
         pmux->sequence_num = seq_num;
         pmux->length_payload = 0x00;
         pmux->length_pmux_packet = 0x1c;
@@ -282,7 +294,7 @@ static void pmux_write_tty(novacom_device_t *dev,char *str,uint32 str_len)
     pmux->ack_synx = PMUX_SYN;
     pmux->flags = PMUX_ESTABLISHED;
     dev->pmux_flags = PMUX_ESTABLISHED;
-    pmux->channel_num = 0;
+    pmux->channel_num = dev->channel_num;
     pmux->sequence_num = dev->pmux_tty_seq_num;
     pmux->length_payload = cmd_len;
     pmux->length_pmux_packet = 0x1c+cmd_len;
@@ -318,7 +330,7 @@ static void pmux_write_command(novacom_device_t *dev,char *cmd)
         pmux->flags = PMUX_ESTABLISHED;
         dev->pmux_flags = PMUX_ESTABLISHED;
         pmux->sequence_num = 1;
-        pmux->channel_num = 0;
+        pmux->channel_num = dev->channel_num;
         dev->pmux_tty_seq_num = 1;
         pmux->length_payload = cmd_len;
         pmux->length_pmux_packet = 0x1c+cmd_len;
@@ -374,7 +386,7 @@ int pmux_send_control(novacom_device_t *dev,uint32 seq_num,uint32 cmd)
         pmux->ack_synx = PMUX_SYN;
         pmux->flags = PMUX_NOT_CONNECTED;
         dev->pmux_flags = PMUX_NOT_CONNECTED;
-        pmux->channel_num = 0;
+        pmux->channel_num = dev->channel_num;
         pmux->sequence_num = seq_num;
         pmux->length_payload = 0x0c;
         pmux->length_pmux_packet = 0x28;
@@ -388,7 +400,6 @@ int pmux_send_control(novacom_device_t *dev,uint32 seq_num,uint32 cmd)
             len += sizeof(*pmux_open);
         }
     }
-    dev->state = STATE_OPEN_ACK;
     return novacom_packet_write( dev, len, USB_TIMEOUT ) ;
 }
 
@@ -401,14 +412,11 @@ void pmux_close(novacom_device_t *dev)
 }
 
 
-int pmux_terminal_open( novacom_device_t *dev ) 
+void pmux_terminal_open( novacom_device_t *dev ) 
 { 
-    int len = 0;
-
     fprintf(stderr,"Opening terminal\n");
     pmux_send_control(dev,1,PMUX_CMD_OPEN);
     dev->state = STATE_OPEN_ACK;
-    return novacom_packet_write( dev, len, USB_TIMEOUT ) ;
 }
 
 int pmux_packet_process( novacom_device_t *dev ) { 
@@ -507,6 +515,8 @@ int pmux_packet_process( novacom_device_t *dev ) {
     return 0 ;
 }
 
+static uint32 dummy_host_id = 0x00004ae1 ;
+
 int novacom_packet_process( novacom_device_t *dev, uint32 len ) {
     // TODO: Perform checking for magic number and other header
     // information here
@@ -515,25 +525,27 @@ int novacom_packet_process( novacom_device_t *dev, uint32 len ) {
             {
                 novacom_packet_t *packet = &dev->packet;
                 if (dev->state!=STATE_TTY) {
-                    printf("Got NOP: id_tx=%x, id_rx=%x",packet->id_tx,packet->id_rx);
-                    printf( "Sending NOP reply\n" ) ;
+                    printf("Got NOP: id_tx=%x, id_rx=%x\n",packet->id_tx,packet->id_rx);
                 }
-            }
-            novacom_reply_nop( dev, len ) ;
-            if (dev->state==STATE_GOT_ANNOUNCE) {
-                pmux_terminal_open(dev);
+                if (dev->state!=STATE_WAIT_ANNOUNCE) {
+                    novacom_reply_nop( dev, len, dummy_serial ) ;
+                }
+                else if (dev->state==STATE_WAIT_ANNOUNCE) {
+                    fprintf(stderr,"Not sending NOP reply -- waiting for announce\n");
+                }
             }
             break ;
 
         case NOVACOM_CMD_ANNOUNCEMENT :
             // TODO: Randomize this value
-            dev->id_host   = 0x00004ae1 ;
+            dev->id_host   = dummy_host_id ;
             dev->id_device = dev->packet.id_tx ;
-            printf( "Sending ANNOUNCEMENT reply\n" ) ;
-            if (novacom_reply_announcement( dev, len )<0) {
+            printf( "Got announcement\n" ) ;
+            if (novacom_reply_announcement(dev)<0) {
                 return -1;
             }
             dev->state = STATE_GOT_ANNOUNCE;
+            pmux_terminal_open(dev);
             break ;
 
         case NOVACOM_CMD_PMUX :
@@ -609,8 +621,7 @@ int main () {
     /* Initialize novacom communications */
     error_check( novacom_init( dev ), 1, "Unable to find or initialize Novacom - is your pre plugged in?\n" ) ;
     make_raw_tty(0,&orig_tty_attr);
-    
-    
+
     /* Iterate through a NOP loop */
     while (dev->state!=STATE_CLOSED) {
 #if 0
