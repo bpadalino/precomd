@@ -650,7 +650,5 @@ int main () {
     }
     restore_tty(0,&orig_tty_attr);
     
-    restore_tty(0,&orig_tty_attr);
-    
     return 0 ;
 }
