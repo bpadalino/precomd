@@ -84,7 +84,8 @@ static char *NOVACOM_COMMANDS[] = {
 #define STATE_COMMAND_ACK 4
 #define STATE_WAIT_OK 5
 #define STATE_TTY 6
-#define STATE_CLOSED 7
+#define STATE_CLOSING 7
+#define STATE_CLOSED 8
 
 typedef struct {
     uint32 magic ;

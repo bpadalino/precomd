@@ -188,12 +188,10 @@ int novacom_reply_announcement( novacom_device_t *dev, uint32 len ) {
 
 static void print_payload(uint8 *payload, uint32 len)
 {
-    fprintf(stderr,"payload:");
     int i = 0;
     for (;i!=len;++i) {
-    fprintf(stderr," %02x",payload[i]);
+        fprintf(stderr," %02x",payload[i]);
     }
-    fprintf(stderr,"\n");
 }
 
 static void print_pmux(pmux_packet_t *pmux)
@@ -205,7 +203,35 @@ static void print_pmux(pmux_packet_t *pmux)
     fprintf(stderr,"pmux sequence_num: %08x\n",pmux->sequence_num);
     fprintf(stderr,"pmux length_payload: %08x\n",pmux->length_payload);
     fprintf(stderr,"pmux length_pmux_packet: %08x\n",pmux->length_pmux_packet);
+    if (pmux->length_payload >= 4) {
+      pmux_data_payload_t *data = (pmux_data_payload_t *)pmux->payload;
+      if (data->magic==PMUX_DATA_MAGIC) {
+        fprintf(stderr,"pmux payload\n");
+        fprintf(stderr,"  version: %08x\n",data->version);
+        fprintf(stderr,"  type: %08x\n",data->type);
+        fprintf(stderr,"  payload: ");
+        if (data->type==PMUX_HEADER_TYPE_OOB) {
+            fprintf(stderr,"  oob\n");
+            pmux_oob_t *oob = (pmux_oob_t *)data->payload;
+            fprintf(stderr,"    type: %08x\n",oob->type);
+            fprintf(stderr,"    payload: %08x\n",oob->payload);
+            fprintf(stderr,"    zero: %08x\n",oob->zero[0]);
+            fprintf(stderr,"    zero: %08x\n",oob->zero[1]);
+            fprintf(stderr,"    zero: %08x\n",oob->zero[2]);
+        }
+        else {
+          print_payload(data->payload,data->length);
+          fprintf(stderr,"\n");
+        }
+        return;
+      }
+      else {
+          fprintf(stderr,"not data magic: %08x\n",data->magic);
+      }
+    }
+    fprintf(stderr,"pmux payload:");
     print_payload(pmux->payload,pmux->length_payload);
+    fprintf(stderr,"\n");
 }
 
 
@@ -331,11 +357,11 @@ static int read_input(char *buf,uint32 buf_size)
   return p-buf;
 }
 
-int pmux_terminal_open( novacom_device_t *dev ) 
-{ 
+
+int pmux_send_control(novacom_device_t *dev,uint32 seq_num,uint32 cmd)
+{
     int len = 0;
 
-    fprintf(stderr,"Opening terminal\n");
     dev->packet.id_tx = dev->id_host ;
     dev->packet.id_rx = dev->id_device ;
     dev->packet.command = NOVACOM_CMD_PMUX ;
@@ -349,19 +375,38 @@ int pmux_terminal_open( novacom_device_t *dev )
         pmux->flags = PMUX_NOT_CONNECTED;
         dev->pmux_flags = PMUX_NOT_CONNECTED;
         pmux->channel_num = 0;
-        pmux->sequence_num = 1;
+        pmux->sequence_num = seq_num;
         pmux->length_payload = 0x0c;
         pmux->length_pmux_packet = 0x28;
         pmux->zero = 0x00000000;
         len += sizeof(*pmux);
         {
             pmux_control_payload_t *pmux_open = (pmux_control_payload_t *)pmux->payload;
-            pmux_open->command = PMUX_CMD_OPEN;
+            pmux_open->command = cmd;
             pmux_open->hex1000 = 0x00001000;
             pmux_open->hex000c = 0x0000000c;
             len += sizeof(*pmux_open);
         }
     }
+    dev->state = STATE_OPEN_ACK;
+    return novacom_packet_write( dev, len, USB_TIMEOUT ) ;
+}
+
+void pmux_close(novacom_device_t *dev)
+{
+    fprintf(stderr,"Closing terminal\n");
+    pmux_send_control(dev,2,PMUX_CMD_CLOSE);
+    pmux_send_control(dev,3,1);
+    dev->state = STATE_CLOSING;
+}
+
+
+int pmux_terminal_open( novacom_device_t *dev ) 
+{ 
+    int len = 0;
+
+    fprintf(stderr,"Opening terminal\n");
+    pmux_send_control(dev,1,PMUX_CMD_OPEN);
     dev->state = STATE_OPEN_ACK;
     return novacom_packet_write( dev, len, USB_TIMEOUT ) ;
 }
@@ -382,6 +427,9 @@ int pmux_packet_process( novacom_device_t *dev ) {
     if (pmux->ack_synx==PMUX_ACK) {
         if (dev->state!=STATE_TTY) {
             fprintf(stderr,"Got ack for %d\n",pmux->sequence_num);
+            if (dev->state==STATE_CLOSING && pmux->sequence_num>=3) {
+                dev->state=STATE_CLOSED;
+            }
         }
         if (dev->state==STATE_OPEN_ACK) {
             fprintf(stderr,"Going to open tty state\n");
@@ -422,8 +470,18 @@ int pmux_packet_process( novacom_device_t *dev ) {
             }
             else {
                 if (tty->type==PMUX_HEADER_TYPE_OOB) {
-                    fprintf(stderr,"Received oob data\n");
-                    print_pmux(pmux);
+                    fprintf(stderr,"Received oob ");
+                    pmux_oob_t *oob = (pmux_oob_t *)tty->payload;
+                    if (oob->type==PMUX_OOB_EOF) {
+                        fprintf(stderr,"eof");
+                    }
+                    else if (oob->type==PMUX_OOB_RETURN) {
+                        fprintf(stderr,"return");
+                    }
+                    fprintf(stderr," %d\n",oob->payload);
+                    if (oob->type==PMUX_OOB_RETURN) {
+                        pmux_close(dev);
+                    }
                 }
                 else if (tty->type==PMUX_HEADER_TYPE_ERR) {
                     fprintf(stderr,"Received error\n");
@@ -539,8 +597,6 @@ int main () {
     int ret;
     struct termios orig_tty_attr;
 
-    make_raw_tty(0,&orig_tty_attr);
-    
     /* The USB device with other relavent information */ 
     novacom_device_t *dev = (novacom_device_t *)malloc( sizeof(novacom_device_t)+USB_BUFLEN ) ;
     
@@ -552,6 +608,8 @@ int main () {
     
     /* Initialize novacom communications */
     error_check( novacom_init( dev ), 1, "Unable to find or initialize Novacom - is your pre plugged in?\n" ) ;
+    make_raw_tty(0,&orig_tty_attr);
+    
     
     /* Iterate through a NOP loop */
     while (dev->state!=STATE_CLOSED) {
