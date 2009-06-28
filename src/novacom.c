@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <usb.h>
+#include <termios.h>
 
 #include "novacom.h"
 #include "novacom_private.h"
@@ -375,7 +376,7 @@ int pmux_packet_process( novacom_device_t *dev ) {
 
     if (pmux->version != PMUX_MODE_NORMAL) {
         fprintf(stderr,"Invalid pmux version\n");
-    exit(1);
+        exit(1);
     }
 
     if (pmux->ack_synx==PMUX_ACK) {
@@ -397,7 +398,12 @@ int pmux_packet_process( novacom_device_t *dev ) {
         }
     }
     else {
-        if (dev->state==STATE_WAIT_OK) {
+        if (pmux->payload[0]==PMUX_CMD_CLOSE) {
+            fprintf(stderr,"Channel closed.\n");
+            pmux_ack(dev,pmux->sequence_num);
+            dev->state=STATE_CLOSED;
+        }
+        else if (dev->state==STATE_WAIT_OK) {
             fprintf(stderr,"Got response: '");
             print_payload_str(pmux->payload,pmux->length_payload);
             fprintf(stderr,"'\n");
@@ -408,23 +414,25 @@ int pmux_packet_process( novacom_device_t *dev ) {
         else if (dev->state==STATE_TTY) {
             pmux_data_payload_t *tty = (pmux_data_payload_t *)pmux->payload;
             if (tty->magic!=PMUX_DATA_MAGIC) {
-                pmux_control_payload_t *control = (pmux_control_payload_t *)pmux->payload;
-                if (control->command==PMUX_CMD_CLOSE) {
-                    fprintf(stderr,"Channel closed.\n");
-                    pmux_ack(dev,pmux->sequence_num);
-                    dev->state=STATE_CLOSED;
-                }
-                else {
-                    fprintf(stderr,"Unknown control.\n");
-                    print_pmux(pmux);
-                    dev->pmux_flags = pmux->flags;
-                    pmux_ack(dev,pmux->sequence_num);
-                    dev->state=STATE_LIMBO;
-                }
+                fprintf(stderr,"Unknown control.\n");
+                print_pmux(pmux);
+                dev->pmux_flags = pmux->flags;
+                pmux_ack(dev,pmux->sequence_num);
+                dev->state=STATE_LIMBO;
             }
             else {
-                int len = tty->length;
-                print_payload_str(tty->payload,len);
+                if (tty->type==PMUX_HEADER_TYPE_OOB) {
+                    fprintf(stderr,"Received oob data\n");
+                    print_pmux(pmux);
+                }
+                else if (tty->type==PMUX_HEADER_TYPE_ERR) {
+                    fprintf(stderr,"Received error\n");
+                    print_pmux(pmux);
+                }
+                else {
+                  int len = tty->length;
+                  print_payload_str(tty->payload,len);
+                }
                 pmux_ack(dev,pmux->sequence_num);
             }
         }
@@ -432,7 +440,9 @@ int pmux_packet_process( novacom_device_t *dev ) {
             fprintf(stderr,"Unexpected syn\n");
             print_pmux(pmux);
             pmux_ack(dev,pmux->sequence_num);
+#if 0
             pmux_terminal_open(dev);
+#endif
         }
     }
 
@@ -491,6 +501,27 @@ int error_check( int ret, int quit, char *msg ) {
     return ret ;
 }
 
+
+static void make_raw_tty(int fd,struct termios *orig)
+{
+    struct termios attr;
+    tcgetattr(fd,&attr);
+    *orig = attr;
+    attr.c_lflag &= ~ICANON;
+    attr.c_lflag &= ~ECHO;
+    attr.c_cc[VMIN] = 1;
+    attr.c_cc[VTIME] = 0;
+    attr.c_cc[VEOF] = 0;
+    attr.c_cc[VINTR] = 0;
+    attr.c_cc[VQUIT] = 0;
+    tcsetattr(fd,TCSANOW,&attr);
+}
+
+static void restore_tty(int fd,struct termios *attrs)
+{
+    tcsetattr(fd,TCSANOW,attrs);
+}
+
 int pmux_file_put( novacom_device_t *dev ) { return 0 ; }
 int pmux_file_get( novacom_device_t *dev ) { return 0 ; }
 
@@ -506,6 +537,9 @@ int pmux_mem_boot( novacom_device_t *dev, uint32 addr ) { return 0 ; }
 int main () {
     
     int ret;
+    struct termios orig_tty_attr;
+
+    make_raw_tty(0,&orig_tty_attr);
     
     /* The USB device with other relavent information */ 
     novacom_device_t *dev = (novacom_device_t *)malloc( sizeof(novacom_device_t)+USB_BUFLEN ) ;
@@ -521,7 +555,12 @@ int main () {
     
     /* Iterate through a NOP loop */
     while (dev->state!=STATE_CLOSED) {
+#if 0
         ret = error_check( novacom_packet_read( dev, USB_BUFLEN, USB_TIMEOUT ), 0, "Timeout or error reading USB!\n" ) ;
+#else
+        ret = novacom_packet_read( dev, USB_BUFLEN, USB_TIMEOUT );
+#endif
+
         if( ret > 0 ) {
             if (dev->state!=STATE_TTY) {
                     printf( "Read %i bytes - success!\n", ret ) ;
@@ -540,6 +579,7 @@ int main () {
             }
         }
     }
+    restore_tty(0,&orig_tty_attr);
     
     return 0 ;
 }
