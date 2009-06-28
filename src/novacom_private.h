@@ -87,6 +87,10 @@ static char *NOVACOM_COMMANDS[] = {
 #define STATE_CLOSING 7
 #define STATE_CLOSED 8
 
+#define MODE_OPEN_TTY 0
+#define MODE_GET_FILE 1
+#define MODE_PUT_FILE 2
+
 typedef struct {
     uint32 magic ;
     uint32 direction ;

@@ -38,6 +38,9 @@ typedef struct {
     uint32 id_device ;
     uint8 id_session[40] ;
     uint32 state ;
+    uint32 mode ;
+    const char *file_path;
+    int exit_code;
     uint32 pmux_flags ;
     uint32 pmux_tty_seq_num ;
     uint32 channel_num;

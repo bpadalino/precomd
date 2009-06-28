@@ -8,6 +8,7 @@
 #include <string.h>
 #include <usb.h>
 #include <termios.h>
+#include <assert.h>
 
 #include "novacom.h"
 #include "novacom_private.h"
@@ -41,16 +42,16 @@ struct usb_dev_handle* novacom_find_endpoints( uint32 *ep_in, uint32 *ep_out ) {
                         /* Check if this interface is novacom on the phone */
                         if (is_interface_novacom(&(dev->config[c].interface[i].altsetting[a]))) {
                             /* Open the device, set the alternate setting, claim the interface and do your processing */
-                            // printf( "Novacom found!\n") ;
+                            // fprintf(stderr, "Novacom found!\n") ;
                             retval = usb_open( dev ) ;
 
                             if( (ret=usb_claim_interface(retval, i)) < 0 ) {
-                                printf( "Error claiming interface %i: %i\n", i, ret ) ;
+                                fprintf(stderr, "Error claiming interface %i: %i\n", i, ret ) ;
                                 exit( 1 ) ;
                             }
 
                             if( (ret=usb_set_altinterface( retval, a)) < 0 ) {
-                                printf( "Error setting altinterface %i: %i\n", a, ret ) ;
+                                fprintf(stderr, "Error setting altinterface %i: %i\n", a, ret ) ;
                                 exit( 1 ) ;
                             }
 
@@ -89,11 +90,14 @@ int novacom_init( novacom_device_t *dev ) {
         return -1 ;
     }
 
-    printf( "Novacom found: bulk_ep_in: 0x%2.2x bulk_ep_out: 0x%2.2x\n\n", dev->ep_rx, dev->ep_tx ) ;
+    fprintf(stderr,"Novacom found: bulk_ep_in: 0x%2.2x bulk_ep_out: 0x%2.2x\n\n", dev->ep_rx, dev->ep_tx ) ;
 
     dev->state = STATE_WAIT_ANNOUNCE;
     dev->id_device = 0;
     dev->channel_num = 0;
+    dev->mode = MODE_OPEN_TTY;
+    dev->file_path = 0;
+    dev->exit_code = 0;
     
     return 0 ;
 }
@@ -101,19 +105,19 @@ int novacom_init( novacom_device_t *dev ) {
 void print_buf( char *buf, uint32 size ) {
     int x ;
     char c ;
-    printf( "\nhex:\n\n    ") ;
+    fprintf(stderr, "\nhex:\n\n    ") ;
     for( x = 0 ; x < size ; x++ ) {
-        printf( "%2.2x ", buf[x]&0xff ) ;
-        if( (x+1) % 8 == 0 ) printf("\n    " ) ;
+        fprintf(stderr, "%2.2x ", buf[x]&0xff ) ;
+        if( (x+1) % 8 == 0 ) fprintf(stderr,"\n    " ) ;
     }
-    printf( "\nascii:\n\n    ") ;
+    fprintf(stderr, "\nascii:\n\n    ") ;
     for( x = 0 ; x < size ; x++ ) {
         c = (char)buf[x]&0xff ;
         c = (c < 32 || c > 126) ? '.' : c ;
-        printf( "%c ", c ) ;
-        if( (x+1) % 8 == 0 ) printf( "\n    " ) ;
+        fprintf(stderr, "%c ", c ) ;
+        if( (x+1) % 8 == 0 ) fprintf(stderr, "\n    " ) ;
     }
-    printf( "\n" ) ;
+    fprintf(stderr, "\n" ) ;
 
     return ;
 }
@@ -121,10 +125,10 @@ void print_buf( char *buf, uint32 size ) {
 void novacom_payload_print( uint32 command, uint8 payload[], uint32 size ) {
     switch( command ) {
         case NOVACOM_CMD_NOP           :
-            printf( "  nduid: %s\n", ((novacom_nop_t *)payload)->nduid ) ;
+            fprintf(stderr, "  nduid: %s\n", ((novacom_nop_t *)payload)->nduid ) ;
             break ;
         case NOVACOM_CMD_ANNOUNCEMENT  :
-            printf( "  nduid: %s\n", ((novacom_announcement_t *)payload)->nduid ) ;
+            fprintf(stderr, "  nduid: %s\n", ((novacom_announcement_t *)payload)->nduid ) ;
             break ;
         case NOVACOM_CMD_PMUX         :
             print_buf( (char *)payload, size ) ;
@@ -147,22 +151,22 @@ int novacom_packet_write( novacom_device_t *dev, uint32 size, uint32 timeout ) {
 
 void novacom_packet_print( novacom_packet_t *packet, uint32 size ) {
 
-    printf( "magic string   : 0x%8.8x\n", packet->magic ) ;
-    printf( "version        : 0x%8.8x\n", packet->version ) ;
-    printf( "sender id      : 0x%8.8x\n", packet->id_tx ) ;
-    printf( "receiver id    : 0x%8.8x\n", packet->id_rx ) ;
-    printf( "command        : " ) ;
+    fprintf(stderr, "magic string   : 0x%8.8x\n", packet->magic ) ;
+    fprintf(stderr, "version        : 0x%8.8x\n", packet->version ) ;
+    fprintf(stderr, "sender id      : 0x%8.8x\n", packet->id_tx ) ;
+    fprintf(stderr, "receiver id    : 0x%8.8x\n", packet->id_rx ) ;
+    fprintf(stderr, "command        : " ) ;
     switch( packet->command ) {
         case NOVACOM_CMD_NOP            :
         case NOVACOM_CMD_ANNOUNCEMENT   :
         case NOVACOM_CMD_PMUX          :
-                                            printf( "%s\n", NOVACOM_COMMANDS[packet->command] ) ;
+                                            fprintf(stderr, "%s\n", NOVACOM_COMMANDS[packet->command] ) ;
                                             novacom_payload_print( packet->command, packet->payload, size-sizeof(novacom_packet_t) ) ;
                                             break ;
-        default                         :   printf( "UNKNOWN - 0x%8.8xi\n", packet->command ) ;
+        default                         :   fprintf(stderr, "UNKNOWN - 0x%8.8xi\n", packet->command ) ;
     }
 
-    printf( "\n" ) ;
+    fprintf(stderr, "\n" ) ;
 
     return ;
 }
@@ -206,7 +210,7 @@ static void print_payload(uint8 *payload, uint32 len)
     }
 }
 
-static void print_pmux(pmux_packet_t *pmux)
+static void pmux_print(pmux_packet_t *pmux)
 {
     fprintf(stderr,"pmux version: %02x\n",pmux->version);
     fprintf(stderr,"pmux ack_synx: %02x\n",pmux->ack_synx);
@@ -312,7 +316,7 @@ static void pmux_write_tty(novacom_device_t *dev,char *str,uint32 str_len)
 }
 
 
-static void pmux_write_command(novacom_device_t *dev,char *cmd)
+static void pmux_write_command(novacom_device_t *dev,const char *cmd,const char *arg)
 {
     fprintf(stderr,"Sending %s\n",cmd);
     int len = 0;
@@ -321,7 +325,7 @@ static void pmux_write_command(novacom_device_t *dev,char *cmd)
     dev->packet.command = NOVACOM_CMD_PMUX ;
     len += sizeof(dev->packet);
     {
-        int cmd_len = strlen((char *)cmd);
+        int cmd_len = strlen((char *)cmd)+1+strlen((char *)arg);
         pmux_packet_t *pmux = (pmux_packet_t *)dev->packet.payload;
         pmux->magic = PMUX_ASCII_MAGIC;
         pmux->version = PMUX_MODE_NORMAL;
@@ -335,7 +339,11 @@ static void pmux_write_command(novacom_device_t *dev,char *cmd)
         pmux->length_payload = cmd_len;
         pmux->length_pmux_packet = 0x1c+cmd_len;
         pmux->zero = 0x00000000;
-        memcpy(pmux->payload,cmd,cmd_len);
+        {
+            char *payload = (char *)pmux->payload;
+            sprintf(payload,"%s %s",cmd,arg);
+            assert(strlen(payload)==cmd_len);
+        }
         len += sizeof(*pmux);
         len += cmd_len;
     }
@@ -343,11 +351,11 @@ static void pmux_write_command(novacom_device_t *dev,char *cmd)
 }
 
 
-static void print_payload_str(uint8 *payload,uint32 len)
+static void print_payload_str(FILE *file,uint8 *payload,uint32 len)
 {
     int i = 0;
     for (;i<len;++i) {
-        fprintf(stderr,"%c",payload[i]);
+        fprintf(file,"%c",payload[i]);
     }
 }
 
@@ -419,6 +427,7 @@ void pmux_terminal_open( novacom_device_t *dev )
     dev->state = STATE_OPEN_ACK;
 }
 
+
 int pmux_packet_process( novacom_device_t *dev ) { 
     pmux_packet_t *pmux = (pmux_packet_t *) &(dev->packet.payload) ;
     
@@ -440,8 +449,18 @@ int pmux_packet_process( novacom_device_t *dev ) {
             }
         }
         if (dev->state==STATE_OPEN_ACK) {
-            fprintf(stderr,"Going to open tty state\n");
-            pmux_write_command(dev,"open tty://");
+            if (dev->mode==MODE_OPEN_TTY) {
+                fprintf(stderr,"Opening tty\n");
+                pmux_write_command(dev,"open","tty://");
+            }
+            else if (dev->mode==MODE_GET_FILE) {
+                fprintf(stderr,"Getting file\n");
+                pmux_write_command(dev,"get",dev->file_path);
+            }
+            else if (dev->mode==MODE_PUT_FILE) {
+                fprintf(stderr,"Putting file\n");
+                pmux_write_command(dev,"put",dev->file_path);
+            }
             dev->state=STATE_COMMAND_ACK;
         }
         else if (dev->state==STATE_COMMAND_ACK) {
@@ -461,17 +480,27 @@ int pmux_packet_process( novacom_device_t *dev ) {
         }
         else if (dev->state==STATE_WAIT_OK) {
             fprintf(stderr,"Got response: '");
-            print_payload_str(pmux->payload,pmux->length_payload);
+            print_payload_str(stderr,pmux->payload,pmux->length_payload);
             fprintf(stderr,"'\n");
             pmux_ack(dev,pmux->sequence_num);
-            dev->state=STATE_TTY;
-            fprintf(stderr,"Going to tty state\n");
+            {
+                char *payload = (char *)pmux->payload;
+                if (strncmp(payload,"ok ",3)==0) {
+                    dev->state = STATE_TTY;
+                    fprintf(stderr,"Going to tty state\n");
+                }
+                else {
+                    dev->exit_code = 1;
+                    pmux_close(dev);
+                    fprintf(stderr,"Closing\n");
+                }
+            }
         }
         else if (dev->state==STATE_TTY) {
             pmux_data_payload_t *tty = (pmux_data_payload_t *)pmux->payload;
             if (tty->magic!=PMUX_DATA_MAGIC) {
                 fprintf(stderr,"Unknown control.\n");
-                print_pmux(pmux);
+                pmux_print(pmux);
                 dev->pmux_flags = pmux->flags;
                 pmux_ack(dev,pmux->sequence_num);
                 dev->state=STATE_LIMBO;
@@ -493,18 +522,19 @@ int pmux_packet_process( novacom_device_t *dev ) {
                 }
                 else if (tty->type==PMUX_HEADER_TYPE_ERR) {
                     fprintf(stderr,"Received error\n");
-                    print_pmux(pmux);
+                    pmux_print(pmux);
                 }
                 else {
                   int len = tty->length;
-                  print_payload_str(tty->payload,len);
+                  print_payload_str(stdout,tty->payload,len);
+                  fflush(stdout);
                 }
                 pmux_ack(dev,pmux->sequence_num);
             }
         }
         else {
             fprintf(stderr,"Unexpected syn\n");
-            print_pmux(pmux);
+            pmux_print(pmux);
             pmux_ack(dev,pmux->sequence_num);
 #if 0
             pmux_terminal_open(dev);
@@ -525,7 +555,7 @@ int novacom_packet_process( novacom_device_t *dev, uint32 len ) {
             {
                 novacom_packet_t *packet = &dev->packet;
                 if (dev->state!=STATE_TTY) {
-                    printf("Got NOP: id_tx=%x, id_rx=%x\n",packet->id_tx,packet->id_rx);
+                    fprintf(stderr,"Got NOP: id_tx=%x, id_rx=%x\n",packet->id_tx,packet->id_rx);
                 }
                 if (dev->state!=STATE_WAIT_ANNOUNCE) {
                     novacom_reply_nop( dev, len, dummy_serial ) ;
@@ -540,7 +570,7 @@ int novacom_packet_process( novacom_device_t *dev, uint32 len ) {
             // TODO: Randomize this value
             dev->id_host   = dummy_host_id ;
             dev->id_device = dev->packet.id_tx ;
-            printf( "Got announcement\n" ) ;
+            fprintf(stderr, "Got announcement\n" ) ;
             if (novacom_reply_announcement(dev)<0) {
                 return -1;
             }
@@ -550,13 +580,13 @@ int novacom_packet_process( novacom_device_t *dev, uint32 len ) {
 
         case NOVACOM_CMD_PMUX :
             if (dev->state!=STATE_TTY) {
-                printf( "Processing PMUX packet\n" ) ;
+                fprintf(stderr, "Processing PMUX packet\n" ) ;
             }
             return pmux_packet_process( dev ) ;
             break ;
 
         default :
-            printf( "Not sure wtf to do\n" ) ;
+            fprintf(stderr, "Not sure wtf to do\n" ) ;
             break ;
 
     }
@@ -604,7 +634,7 @@ int pmux_program_run( novacom_device_t *dev, uint32 argc, char **argv ) { return
 int pmux_mem_put( novacom_device_t *dev, uint32 addr, uint32 data ) { return 0 ; }
 int pmux_mem_boot( novacom_device_t *dev, uint32 addr ) { return 0 ; }
 
-int main () {
+int main (int argc, char **argv) {
     
     int ret;
     struct termios orig_tty_attr;
@@ -620,7 +650,26 @@ int main () {
     
     /* Initialize novacom communications */
     error_check( novacom_init( dev ), 1, "Unable to find or initialize Novacom - is your pre plugged in?\n" ) ;
-    make_raw_tty(0,&orig_tty_attr);
+    if (argc==1) {
+        dev->mode = MODE_OPEN_TTY;
+    }
+    else {
+        int is_get = strcmp(argv[1],"get")==0;
+        int is_put = strcmp(argv[1],"put")==0;
+        if (is_get || is_put) {
+            if (argc<3) {
+                fprintf(stderr,"No url specified for %s\n",argv[1]);
+                exit(1);
+            }
+            dev->file_path = argv[2];
+            dev->mode = is_get ? MODE_GET_FILE : MODE_PUT_FILE;
+        }
+    }
+
+
+    if (dev->mode==MODE_OPEN_TTY) {
+        make_raw_tty(0,&orig_tty_attr);
+    }
 
     /* Iterate through a NOP loop */
     while (dev->state!=STATE_CLOSED) {
@@ -632,23 +681,38 @@ int main () {
 
         if( ret > 0 ) {
             if (dev->state!=STATE_TTY) {
-                    printf( "Read %i bytes - success!\n", ret ) ;
+                    fprintf(stderr, "Read %i bytes - success!\n", ret ) ;
             }
             novacom_packet_process( dev, ret ) ;
         }
         if (dev->state==STATE_TTY) {
-            char buf[1024];
-            int n = read_input(buf,(sizeof buf)-1);
-            buf[n] = '\0';
-            if (dev->state!=STATE_TTY) {
-                fprintf(stderr,"terminal input: '%s'\n",buf);
+            if (dev->mode==MODE_OPEN_TTY) {
+                char buf[1024];
+                int n = read_input(buf,(sizeof buf)-1);
+                buf[n] = '\0';
+                if (dev->state!=STATE_TTY) {
+                    fprintf(stderr,"terminal input: '%s'\n",buf);
+                }
+                if (n>0) {
+                    pmux_write_tty(dev,buf,n);
+                }
             }
-            if (n>0) {
-                pmux_write_tty(dev,buf,n);
+            else if (dev->mode==MODE_PUT_FILE) {
+                char buf[1024];
+                int n_read = fread(buf,1,sizeof buf,stdin);
+                if (n_read>0) {
+                    pmux_write_tty(dev,buf,n_read);
+                }
+                else {
+                    pmux_close(dev);
+                }
             }
         }
     }
-    restore_tty(0,&orig_tty_attr);
     
-    return 0 ;
+    if (dev->mode==MODE_OPEN_TTY) {
+        restore_tty(0,&orig_tty_attr);
+    }
+    
+    return dev->exit_code;
 }
