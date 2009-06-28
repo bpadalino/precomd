@@ -39,30 +39,30 @@ struct usb_dev_handle* novacom_find_endpoints( uint32 *ep_in, uint32 *ep_out ) {
                     for (a = 0; a < dev->config[c].interface[i].num_altsetting; a++) {
                         /* Check if this interface is novacom on the phone */
                         if (is_interface_novacom(&(dev->config[c].interface[i].altsetting[a]))) {
-                                /* Open the device, set the alternate setting, claim the interface and do your processing */
-                                // printf( "Novacom found!\n") ;
-                                retval = usb_open( dev ) ;
+                            /* Open the device, set the alternate setting, claim the interface and do your processing */
+                            // printf( "Novacom found!\n") ;
+                            retval = usb_open( dev ) ;
 
-                                if( (ret=usb_claim_interface(retval, i)) < 0 ) {
-                                    printf( "Error claiming interface %i: %i\n", i, ret ) ;
-                                    exit( 1 ) ;
-                                }
+                            if( (ret=usb_claim_interface(retval, i)) < 0 ) {
+                                printf( "Error claiming interface %i: %i\n", i, ret ) ;
+                                exit( 1 ) ;
+                            }
 
-                                if( (ret=usb_set_altinterface( retval, a)) < 0 ) {
-                                    printf( "Error setting altinterface %i: %i\n", a, ret ) ;
-                                    exit( 1 ) ;
-                                }
+                            if( (ret=usb_set_altinterface( retval, a)) < 0 ) {
+                                printf( "Error setting altinterface %i: %i\n", a, ret ) ;
+                                exit( 1 ) ;
+                            }
 
-                                for( ep = 0 ; ep < dev->config[c].interface[i].altsetting[a].bNumEndpoints ; ep++ ) {
-                                    if( dev->config[c].interface[i].altsetting[a].endpoint[ep].bmAttributes == USB_ENDPOINT_TYPE_BULK ) {
-                                        if( dev->config[c].interface[i].altsetting[a].endpoint[ep].bEndpointAddress & USB_ENDPOINT_DIR_MASK ) {
-                                            *ep_in = dev->config[c].interface[i].altsetting[a].endpoint[ep].bEndpointAddress ;
-                                        }
-                                        else {
-                                            *ep_out = dev->config[c].interface[i].altsetting[a].endpoint[ep].bEndpointAddress ;
-                                        }
+                            for( ep = 0 ; ep < dev->config[c].interface[i].altsetting[a].bNumEndpoints ; ep++ ) {
+                                if( dev->config[c].interface[i].altsetting[a].endpoint[ep].bmAttributes == USB_ENDPOINT_TYPE_BULK ) {
+                                    if( dev->config[c].interface[i].altsetting[a].endpoint[ep].bEndpointAddress & USB_ENDPOINT_DIR_MASK ) {
+                                        *ep_in = dev->config[c].interface[i].altsetting[a].endpoint[ep].bEndpointAddress ;
+                                    }
+                                    else {
+                                        *ep_out = dev->config[c].interface[i].altsetting[a].endpoint[ep].bEndpointAddress ;
                                     }
                                 }
+                            }
                         }
                     }
                 }
@@ -291,7 +291,7 @@ static void pmux_write_command(novacom_device_t *dev,char *cmd)
         pmux->flags = PMUX_ESTABLISHED;
         dev->pmux_flags = PMUX_ESTABLISHED;
         pmux->sequence_num = 1;
-	pmux->channel_num = 0;
+        pmux->channel_num = 0;
         dev->pmux_tty_seq_num = 1;
         pmux->length_payload = cmd_len;
         pmux->length_pmux_packet = 0x1c+cmd_len;
@@ -347,7 +347,7 @@ int pmux_terminal_open( novacom_device_t *dev )
         pmux->ack_synx = PMUX_SYN;
         pmux->flags = PMUX_NOT_CONNECTED;
         dev->pmux_flags = PMUX_NOT_CONNECTED;
-	pmux->channel_num = 0;
+        pmux->channel_num = 0;
         pmux->sequence_num = 1;
         pmux->length_payload = 0x0c;
         pmux->length_pmux_packet = 0x28;
@@ -380,60 +380,60 @@ int pmux_packet_process( novacom_device_t *dev ) {
 
     if (pmux->ack_synx==PMUX_ACK) {
         if (dev->state!=STATE_TTY) {
-	    fprintf(stderr,"Got ack for %d\n",pmux->sequence_num);
-	}
-	if (dev->state==STATE_OPEN_ACK) {
-	    fprintf(stderr,"Going to open tty state\n");
-	    pmux_write_command(dev,"open tty://");
-	    dev->state=STATE_COMMAND_ACK;
-	}
-	else if (dev->state==STATE_COMMAND_ACK) {
-	    fprintf(stderr,"Going to wait ok state\n");
-	    dev->state=STATE_WAIT_OK;
-	    ++dev->pmux_tty_seq_num;
-	}
-	else if (dev->state==STATE_TTY) {
-	    ++dev->pmux_tty_seq_num;
-	}
+            fprintf(stderr,"Got ack for %d\n",pmux->sequence_num);
+        }
+        if (dev->state==STATE_OPEN_ACK) {
+            fprintf(stderr,"Going to open tty state\n");
+            pmux_write_command(dev,"open tty://");
+            dev->state=STATE_COMMAND_ACK;
+        }
+        else if (dev->state==STATE_COMMAND_ACK) {
+            fprintf(stderr,"Going to wait ok state\n");
+            dev->state=STATE_WAIT_OK;
+            ++dev->pmux_tty_seq_num;
+        }
+        else if (dev->state==STATE_TTY) {
+            ++dev->pmux_tty_seq_num;
+        }
     }
     else {
-	if (dev->state==STATE_WAIT_OK) {
-	    fprintf(stderr,"Got response: '");
-	    print_payload_str(pmux->payload,pmux->length_payload);
-	    fprintf(stderr,"'\n");
-	    pmux_ack(dev,pmux->sequence_num);
-	    dev->state=STATE_TTY;
-	    fprintf(stderr,"Going to tty state\n");
-	}
-	else if (dev->state==STATE_TTY) {
-	    pmux_data_payload_t *tty = (pmux_data_payload_t *)pmux->payload;
-	    if (tty->magic!=PMUX_DATA_MAGIC) {
-		pmux_control_payload_t *control = (pmux_control_payload_t *)pmux->payload;
-		if (control->command==PMUX_CMD_CLOSE) {
-		    fprintf(stderr,"Channel closed.\n");
-		    pmux_ack(dev,pmux->sequence_num);
-		    dev->state=STATE_CLOSED;
-		}
-		else {
-		    fprintf(stderr,"Unknown control.\n");
-		    print_pmux(pmux);
-		    dev->pmux_flags = pmux->flags;
-		    pmux_ack(dev,pmux->sequence_num);
-		    dev->state=STATE_LIMBO;
-		}
-	    }
-	    else {
-		int len = tty->length;
-		print_payload_str(tty->payload,len);
-		pmux_ack(dev,pmux->sequence_num);
-	    }
-	}
-	else {
-	    fprintf(stderr,"Unexpected syn\n");
-	    print_pmux(pmux);
-	    pmux_ack(dev,pmux->sequence_num);
-	    pmux_terminal_open(dev);
-	}
+        if (dev->state==STATE_WAIT_OK) {
+            fprintf(stderr,"Got response: '");
+            print_payload_str(pmux->payload,pmux->length_payload);
+            fprintf(stderr,"'\n");
+            pmux_ack(dev,pmux->sequence_num);
+            dev->state=STATE_TTY;
+            fprintf(stderr,"Going to tty state\n");
+        }
+        else if (dev->state==STATE_TTY) {
+            pmux_data_payload_t *tty = (pmux_data_payload_t *)pmux->payload;
+            if (tty->magic!=PMUX_DATA_MAGIC) {
+                pmux_control_payload_t *control = (pmux_control_payload_t *)pmux->payload;
+                if (control->command==PMUX_CMD_CLOSE) {
+                    fprintf(stderr,"Channel closed.\n");
+                    pmux_ack(dev,pmux->sequence_num);
+                    dev->state=STATE_CLOSED;
+                }
+                else {
+                    fprintf(stderr,"Unknown control.\n");
+                    print_pmux(pmux);
+                    dev->pmux_flags = pmux->flags;
+                    pmux_ack(dev,pmux->sequence_num);
+                    dev->state=STATE_LIMBO;
+                }
+            }
+            else {
+                int len = tty->length;
+                print_payload_str(tty->payload,len);
+                pmux_ack(dev,pmux->sequence_num);
+            }
+        }
+        else {
+            fprintf(stderr,"Unexpected syn\n");
+            print_pmux(pmux);
+            pmux_ack(dev,pmux->sequence_num);
+            pmux_terminal_open(dev);
+        }
     }
 
     return 0 ;
@@ -523,8 +523,8 @@ int main () {
     while (dev->state!=STATE_CLOSED) {
         ret = error_check( novacom_packet_read( dev, USB_BUFLEN, USB_TIMEOUT ), 0, "Timeout or error reading USB!\n" ) ;
         if( ret > 0 ) {
-        if (dev->state!=STATE_TTY) {
-                printf( "Read %i bytes - success!\n", ret ) ;
+            if (dev->state!=STATE_TTY) {
+                    printf( "Read %i bytes - success!\n", ret ) ;
             }
             novacom_packet_process( dev, ret ) ;
         }
