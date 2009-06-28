@@ -538,8 +538,6 @@ int main () {
     
     int ret;
     struct termios orig_tty_attr;
-
-    make_raw_tty(0,&orig_tty_attr);
     
     /* The USB device with other relavent information */ 
     novacom_device_t *dev = (novacom_device_t *)malloc( sizeof(novacom_device_t)+USB_BUFLEN ) ;
@@ -561,6 +559,8 @@ int main () {
         ret = novacom_packet_read( dev, USB_BUFLEN, USB_TIMEOUT );
 #endif
 
+        make_raw_tty(0,&orig_tty_attr);
+
         if( ret > 0 ) {
             if (dev->state!=STATE_TTY) {
                     printf( "Read %i bytes - success!\n", ret ) ;
@@ -579,6 +579,7 @@ int main () {
             }
         }
     }
+    
     restore_tty(0,&orig_tty_attr);
     
     return 0 ;
