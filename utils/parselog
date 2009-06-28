@@ -1,0 +1,242 @@
+#!/usr/bin/env python
+from sys import stderr, argv
+
+class StringFile:
+  def __init__(self,str):
+    self.pos=0
+    self.str=str
+  def read(self,n=-1):
+    if n==-1:
+      n=len(self.str)-self.pos
+    result=self.str[self.pos:self.pos+n]
+    self.pos+=n
+    return result
+
+def printhex(s):
+  print ['%02x'%ord(x) for x in s]
+
+def reverse(s):
+  return s[::-1]
+
+def hexstr(s):
+  return ''.join(['%02x'%ord(x) for x in reverse(s)])
+
+def bytes(s):
+  return ' '.join(['%02x'%ord(x) for x in s])
+
+def printint(s):
+  print hexstr(s)
+
+def intval(s):
+  return int(hexstr(s),16)
+
+class Enum:
+  @classmethod
+  def valueName(cls,value):
+    for name in cls.__dict__:
+      if cls.__dict__[name]==value:
+        return name
+    return 'unknown'
+
+class TransferFlag(Enum):
+  input=3
+  output=0
+
+class Command(Enum):
+  pmux=3
+  announce=2
+  nop=0
+
+class Direction(Enum):
+  input=0x62
+  output=0x37
+
+class AckSynx(Enum):
+  syn=0
+  ack=1
+
+class Status(Enum):
+  not_connected=1
+  established=0x1000
+
+class HeaderType(Enum):
+  data=0
+  err=1
+  oob=2
+
+class OOBType(Enum):
+  eof=0
+  signal=1
+  x_return=2
+  resize=3
+
+class Channel(Enum):
+  stdin=0
+  stdout=1
+  stderr=2
+
+def nameVal(s,enum):
+  return hexstr(s)+' ('+enum.valueName(intval(s))+')'
+
+def extraStr(extra):
+  return bytes(extra)+' "'+extra+'"'
+
+def printoob(payload):
+  infile=StringFile(payload)
+  print '    oob'
+  print '      type: '+nameVal(infile.read(4),OOBType)
+  print '      channel: '+nameVal(infile.read(4),Channel)
+  extra=infile.read()
+  print '      extra: '+extraStr(extra)
+
+def printpmuxpayload(payload):
+  infile=StringFile(payload)
+  magic_str=infile.read(4)
+  magic=intval(magic_str)
+  if magic==0xdecafbad:
+    print '  payload'
+    print '    magic: '+hexstr(magic_str)
+    print '    version: '+hexstr(infile.read(4))
+    print '    size: '+str(intval(infile.read(4)))
+    type_str=infile.read(4)
+    type=intval(type_str)
+    print '    type: '+nameVal(type_str,HeaderType)
+    extra=infile.read()
+    if type==HeaderType.data:
+      print '    data: '+extraStr(extra)
+    elif type==HeaderType.oob:
+      printoob(extra)
+    else:
+      print '    extra: '+extraStr(extra)
+  elif magic==0x00000003:
+    print '  payload'
+    print '    magic: '+hexstr(magic_str)
+    print '    unknown: '+hexstr(infile.read(4))
+    print '    unknown: '+hexstr(infile.read(4))
+    extra=infile.read()
+    print '    extra: '+extraStr(extra)
+  else:
+    print '  payload: '+bytes(payload)+' "'+payload+'"'
+
+def printpmux(s):
+  infile=StringFile(s)
+  print 'pmux'
+  print '  magic: '+reverse(infile.read(4))
+  print '  mode: '+hexstr(infile.read(1))
+  print '  direction: '+nameVal(infile.read(1),Direction)
+  ack_synx_str=infile.read(2)
+  ack_synx=intval(ack_synx_str)
+  print '  ack_synx: '+nameVal(ack_synx_str,AckSynx)
+  print '  status: '+nameVal(infile.read(2),Status)
+  print '  channel_num: '+hexstr(infile.read(2))
+  print '  sequence_num: '+hexstr(infile.read(4))
+  print '  length_payload: '+hexstr(infile.read(4))
+  print '  length_pmux_packet: '+hexstr(infile.read(4))
+  print '  zero: '+hexstr(infile.read(4))
+  payload=infile.read()
+  if ack_synx==AckSynx.ack:
+    print '  extra: '+extraStr(payload)
+  else:
+    printpmuxpayload(payload)
+
+def printannounce(s):
+  infile=StringFile(s)
+  serial=infile.read(40)
+  print '  serial: '+serial
+  print '  mtu: '+hexstr(infile.read(4))
+  print '  heartbeat: '+hexstr(infile.read(4))
+  print '  timeout: '+hexstr(infile.read(4))
+
+def enumStr(enum):
+  def result(s):
+    return nameVal(s,enum)
+  return result
+
+def show(str):
+  #print str
+  pass
+
+def skip(f,name,n_bytes,tostr):
+  show(name+': '+tostr(f.read(n_bytes)))
+
+class Packet:
+  def readFrom(self,f):
+    self.magic=reverse(f.read(4))
+    self.version=intval(f.read(4))
+    self.tx_id=intval(f.read(4))
+    self.rx_id=intval(f.read(4))
+    self.command=intval(f.read(4))
+    self.payload=f.read()
+  def show(self):
+    print 'magic: '+self.magic
+    print 'version: %08x'%self.version
+    print 'tx_id: %08x'%self.tx_id
+    print 'rx_id: %08x'%self.rx_id
+    command=self.command
+    payload=self.payload
+    print 'command: %08x (%s)'%(command,Command.valueName(command))
+    if command==Command.pmux:
+      printpmux(payload)
+    elif command==Command.announce:
+      printannounce(payload)
+    elif command==Command.nop:
+      print 'serial:  '+payload
+    else:
+      print 'payload:  '+bytes(payload)
+      print 'payload:  '+payload
+    print
+
+def printpacket(s):
+  packet=Packet()
+  packet.readFrom(StringFile(s))
+  packet.show()
+
+def printchunk():
+  n_read=len(f.read(169))
+  if n_read==0:
+    return False
+  f.read(4)
+  f.read(4)
+  f.read(4)
+  f.read(4)
+  f.read(2)
+  f.read(2)
+  f.read(4)
+  f.read(4)
+  f.read(4)
+  f.read(4)
+  f.read(4)
+  skip(f,'pipe_handle',4,hexstr)
+  transfer_flags_str=f.read(4)
+  transfer_flags=intval(transfer_flags_str)
+  if transfer_flags==TransferFlag.input:
+    print 'input'
+  else:
+    print 'output'
+  buflenstr=f.read(4)
+  buflen=intval(buflenstr)
+  print 'buffer_length: '+str(buflen)
+  skip(f,'transfer_buffer',4,hexstr)
+  skip(f,'buffer_mdl',4,hexstr)
+  skip(f,'urb_link',4,hexstr)
+  f.read(32)
+  packet_str=f.read(buflen)
+  printpacket(packet_str)
+  return True
+
+if len(argv)==1:
+  stderr.write('\n')
+  stderr.write('Usage: parselog <utl file>\n')
+  stderr.write('\n')
+  stderr.write('Description:\n')
+  stderr.write('  Parses a utl file containing conversation between\n')
+  stderr.write('  a host and novacomd and prints it in a readable form.\n')
+  stderr.write('\n')
+  sys.exit(1)
+
+utl_path=argv[1]
+
+f=open(utl_path)
+f.read(314)
+while printchunk():
+  pass
