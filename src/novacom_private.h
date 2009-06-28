@@ -22,7 +22,7 @@
 #define int8                        char
 
 #define USB_VENDOR_PALM             0x0830
-#define USB_TIMEOUT                 5000
+#define USB_TIMEOUT                 1000/30 /* 1/30th of a second, for good keyboard response */
 #define USB_BUFLEN                  32768
 
 #define NOVACOM_USB_CLASS           255
