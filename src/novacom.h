@@ -40,6 +40,7 @@ typedef struct {
     uint32 state ;
     uint32 pmux_flags ;
     uint32 pmux_tty_seq_num ;
+    uint32 channel_num;
     novacom_packet_t packet ;
 } novacom_device_t ;
 
@@ -48,7 +49,7 @@ int pmux_packet_process( novacom_device_t *);
 int pmux_file_put( novacom_device_t *);
 int pmux_file_get( novacom_device_t *);
 
-int pmux_terminal_open( novacom_device_t *);
+void pmux_terminal_open( novacom_device_t *);
 int pmux_terminal_close( novacom_device_t *);
 int pmux_terminal_send( novacom_device_t *, char *);
 int pmux_terminal_receive( novacom_device_t *, char *);
