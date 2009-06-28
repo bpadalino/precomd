@@ -39,6 +39,7 @@ typedef struct {
     uint8 id_session[40] ;
     uint32 state ;
     uint32 mode ;
+    const char *command;
     const char *file_path;
     int exit_code;
     uint32 pmux_flags ;

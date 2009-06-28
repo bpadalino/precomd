@@ -95,7 +95,8 @@ int novacom_init( novacom_device_t *dev ) {
     dev->state = STATE_WAIT_ANNOUNCE;
     dev->id_device = 0;
     dev->channel_num = 0;
-    dev->mode = MODE_OPEN_TTY;
+    dev->mode = MODE_TTY;
+    dev->command = 0;
     dev->file_path = 0;
     dev->exit_code = 0;
     
@@ -449,18 +450,7 @@ int pmux_packet_process( novacom_device_t *dev ) {
             }
         }
         if (dev->state==STATE_OPEN_ACK) {
-            if (dev->mode==MODE_OPEN_TTY) {
-                fprintf(stderr,"Opening tty\n");
-                pmux_write_command(dev,"open","tty://");
-            }
-            else if (dev->mode==MODE_GET_FILE) {
-                fprintf(stderr,"Getting file\n");
-                pmux_write_command(dev,"get",dev->file_path);
-            }
-            else if (dev->mode==MODE_PUT_FILE) {
-                fprintf(stderr,"Putting file\n");
-                pmux_write_command(dev,"put",dev->file_path);
-            }
+            pmux_write_command(dev,dev->command,dev->file_path);
             dev->state=STATE_COMMAND_ACK;
         }
         else if (dev->state==STATE_COMMAND_ACK) {
@@ -651,23 +641,30 @@ int main (int argc, char **argv) {
     /* Initialize novacom communications */
     error_check( novacom_init( dev ), 1, "Unable to find or initialize Novacom - is your pre plugged in?\n" ) ;
     if (argc==1) {
-        dev->mode = MODE_OPEN_TTY;
+        dev->mode = MODE_TTY;
+        dev->command = "open";
+        dev->file_path = "tty://";
     }
     else {
-        int is_get = strcmp(argv[1],"get")==0;
-        int is_put = strcmp(argv[1],"put")==0;
-        if (is_get || is_put) {
-            if (argc<3) {
-                fprintf(stderr,"No url specified for %s\n",argv[1]);
-                exit(1);
-            }
-            dev->file_path = argv[2];
-            dev->mode = is_get ? MODE_GET_FILE : MODE_PUT_FILE;
+        if (argc<3) {
+            fprintf(stderr,"No url specified for %s\n",argv[1]);
+            exit(1);
+        }
+        dev->command = argv[1];
+        dev->file_path = argv[2];
+        if (strcmp(dev->command,"put")==0) {
+            dev->mode = MODE_READ;
+        }
+        else if (strcmp(dev->command,"get")==0) {
+            dev->mode = MODE_WRITE;
+        }
+        else {
+            dev->mode = MODE_TTY;
         }
     }
 
 
-    if (dev->mode==MODE_OPEN_TTY) {
+    if (dev->mode==MODE_TTY) {
         make_raw_tty(0,&orig_tty_attr);
     }
 
@@ -686,7 +683,7 @@ int main (int argc, char **argv) {
             novacom_packet_process( dev, ret ) ;
         }
         if (dev->state==STATE_TTY) {
-            if (dev->mode==MODE_OPEN_TTY) {
+            if (dev->mode==MODE_TTY) {
                 char buf[1024];
                 int n = read_input(buf,(sizeof buf)-1);
                 buf[n] = '\0';
@@ -697,7 +694,7 @@ int main (int argc, char **argv) {
                     pmux_write_tty(dev,buf,n);
                 }
             }
-            else if (dev->mode==MODE_PUT_FILE) {
+            else if (dev->mode==MODE_READ) {
                 char buf[1024];
                 int n_read = fread(buf,1,sizeof buf,stdin);
                 if (n_read>0) {
@@ -710,7 +707,7 @@ int main (int argc, char **argv) {
         }
     }
     
-    if (dev->mode==MODE_OPEN_TTY) {
+    if (dev->mode==MODE_TTY) {
         restore_tty(0,&orig_tty_attr);
     }
     
