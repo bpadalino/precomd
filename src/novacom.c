@@ -624,6 +624,20 @@ int pmux_program_run( novacom_device_t *dev, uint32 argc, char **argv ) { return
 int pmux_mem_put( novacom_device_t *dev, uint32 addr, uint32 data ) { return 0 ; }
 int pmux_mem_boot( novacom_device_t *dev, uint32 addr ) { return 0 ; }
 
+void usage( ) {
+    printf( "Usage: novacom [command] [uri]\n" ) ;
+    printf( "   Commands:\n" ) ;
+    printf( "       get     Get a file from the filesystem.  Output to stdout\n" ) ;
+    printf( "       put     Put a file to the filesystem.  Input from stdin\n" ) ;
+    printf( "       run     Execute a command\n\n" ) ;
+    printf( "   Examples:\n" ) ;
+    printf( "       novacom put file:///tmp/package.ipkg < package.ipkg\n" ) ;
+    printf( "       novacom get file:///etc/passwd > passwd\n" ) ;
+    printf( "       novacom run \"file:///bin/ls -l\"\n\n" ) ;
+    printf( "   NOTE: If no command is given, an interactive terminal is opened.\n" ) ;
+    return ;
+}
+
 int main (int argc, char **argv) {
     
     int ret;
@@ -647,7 +661,8 @@ int main (int argc, char **argv) {
     }
     else {
         if (argc<3) {
-            fprintf(stderr,"No url specified for %s\n",argv[1]);
+            fprintf(stderr,"No uri specified for %s\n",argv[1]);
+            usage( ) ;
             exit(1);
         }
         dev->command = argv[1];
